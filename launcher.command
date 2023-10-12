@@ -16,7 +16,7 @@ else
 fi
 
 # Start the updater
-# python updater.py
+python updater.py
 
 # After updates, run the main program from the latest version
 VERSION_FOLDER=$(ls | grep "v[0-9]\+\.[0-9]\+\.[0-9]\+$" | sort -V | tail -n 1)
