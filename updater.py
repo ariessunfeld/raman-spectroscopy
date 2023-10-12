@@ -3,7 +3,7 @@ import os
 from shutil import unpack_archive
 
 # Constants
-MANIFEST_URL = "https://github.com/ariessunfeld/raman-spectroscopy/blob/main/manifest.json"
+MANIFEST_URL = "https://raw.githubusercontent.com/ariessunfeld/raman-spectroscopy/main/manifest.json"
 CURRENT_VERSION_FILE = "version.txt"
 
 def get_remote_version():
