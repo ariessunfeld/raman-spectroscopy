@@ -11,5 +11,6 @@ pip-chill
 pyqt6
 pyqtgraph
 pyyaml
+requests
 scikit-learn
 tqdm
