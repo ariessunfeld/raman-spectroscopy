@@ -1,0 +1,15 @@
+babel
+docopt
+flask-markdown
+frozen-flask
+gevent
+humanize
+ipykernel
+matplotlib
+pandas
+pip-chill
+pyqt6
+pyqtgraph
+pyyaml
+scikit-learn
+tqdm
