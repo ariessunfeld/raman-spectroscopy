@@ -9,13 +9,13 @@ Raman data processing and mineral identification tool, v1.0.2
 ## macOS
 
 ### Automatic
-- Download the (latest release)[TODO] from GitHub
+- Download the (latest release)[https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip] from GitHub
 - Open Finder and unzip the latest release (by double-clicking the `.zip` file)
 - Double-click `launcher.command`
   - Note: If this does not open a new Terminal window automatically, open the Terminal, navigate to the folder containing `launcher.command`, execute `ls` to make sure you see that file, then run `chmod +x launcher.command` to give this file executable privileges. Then repeat this step.
 
 ### Manual
-- Download the (latest release)[TODO] from GitHub
+- Download the (latest release)[https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip] from GitHub
 - Open Finder and unzip the latest release (by double-clicking the `.zip` file)
 - Open a new Terminal window at the folder
 - Create a new virtual environment called `venv` by running `python3.11 -m venv venv`
