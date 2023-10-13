@@ -1,14 +1,32 @@
 # Overview
 
-Raman data processing and mineral identification tool, v0.0.1
+Raman data processing and mineral identification tool, v1.0.2
 
 # Setup
 
-- Open Terminal at folder that contains `gui.py`
-- Run command to make virtual environment: `python3.11 -m venv venv`
-- Run command to activate virtual environment: `source venv/bin/activate`
-- Run command to install necessary packages in virtual environment: `pip install -r requirements.txt`
-- Run command to launch the GUI: `python gui.py`
+- **Note: This program requires `python3.11+`**
+
+## macOS
+
+### Automatic
+- Download the (latest release)[TODO] from GitHub
+- Open Finder and unzip the latest release (by double-clicking the `.zip` file)
+- Double-click `launcher.command`
+  - Note: If this does not open a new Terminal window automatically, open the Terminal, navigate to the folder containing `launcher.command`, execute `ls` to make sure you see that file, then run `chmod +x launcher.command` to give this file executable privileges. Then repeat this step.
+
+### Manual
+- Download the (latest release)[TODO] from GitHub
+- Open Finder and unzip the latest release (by double-clicking the `.zip` file)
+- Open a new Terminal window at the folder
+- Create a new virtual environment called `venv` by running `python3.11 -m venv venv`
+- Activate the new virtual environment by running `source venv/bin/activate`
+- Install the necessary packages into the virtual environment by running `pip install -r requirements.txt`
+- Navigate into the latest version folder (e.g., `v1.2.3`) by running `cd v1.2.3` (replace with actual version number)
+- Launch the program by running `python gui.py`
+
+## Windows
+
+- Coming soon!
 
 # Usage
 
