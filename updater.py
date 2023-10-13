@@ -1,5 +1,6 @@
 import requests
 import os
+import time
 from shutil import unpack_archive
 
 # Constants
@@ -33,6 +34,7 @@ def main():
             with open("temp_update.zip", 'wb') as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
+            time.sleep(1)
             unpack_archive("temp_update.zip", remote_version)
             os.remove("temp_update.zip")
             
