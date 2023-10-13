@@ -12,7 +12,7 @@ class DraggableScatter(pg.ScatterPlotItem):
         self.draggedPointIndex = None
 
     def mousePressEvent(self, ev):
-        if ev.button() == QtCore.Qt.LeftButton:
+        if ev.button() == QtCore.Qt.MouseButton.LeftButton:
             pos = ev.pos()
             points = self.pointsAt(pos)
             if len(points):
