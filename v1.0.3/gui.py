@@ -40,13 +40,13 @@ class MainApp(QMainWindow):
     def initUI(self):
         """Initialization method for the User Interface
         main_layout
-          |__search_layout
-          |    |__database_layout
-          |    |__peaks_layout
-          |    |__tolerance_layout
-          |__results_layout
-          |__plot1_layout
-          |__plot2_layout
+          |--search_layout
+          |    |--database_layout
+          |    |--peaks_layout
+          |    |--tolerance_layout
+          |--results_layout
+          |--plot1_layout
+          |--plot2_layout
         """
 
         main_layout = QVBoxLayout()
@@ -391,11 +391,14 @@ class MainApp(QMainWindow):
         connection = sqlite3.connect(self.database_path)
         cursor = connection.cursor()
 
-        # Basic query (you might need to refine based on exact requirements)
+        # Convert the mineral name to lowercase
+        mineral_name_lower = mineral_name.lower()
+
         if wavelength != '':
-            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE names=? AND wavelength=?", (mineral_name, wavelength))
+            # Use the LOWER function on names column and = operator for comparison
+            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ? AND wavelength=?", (mineral_name_lower, wavelength))
         else:
-            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE names=?", (mineral_name,))
+            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ?", (mineral_name_lower,))
         results = cursor.fetchall()
 
         # Populate the results list
@@ -472,7 +475,7 @@ class MainApp(QMainWindow):
         peaks = [float(x) for x in peaks]
         tolerance = float(self.textbox_tolerance.text())
         
-        # 2. Call your search function (which you already have)
+        # 2. Call search function
         result = find_spectrum_matches(self.database_path, peaks, tolerance) # Dict with keys 1,2,3
         unqiue_singletons = sorted(get_unique_mineral_combinations_optimized(self.database_path, result[1]))
         unique_pairs = sorted(get_unique_mineral_combinations_optimized(self.database_path, result[2]))
