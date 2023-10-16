@@ -1,3 +1,5 @@
+"""This module implements draggable scatter points for the purpose of discretizing and editing the spectrum baseline"""
+
 import sys
 import numpy as np
 from PyQt6.QtWidgets import QApplication, QMainWindow
@@ -49,6 +51,12 @@ class DraggableGraph(pg.GraphItem):
         self.setData(pos=np.array(list(zip(self.scatter_data['x'], self.scatter_data['y']))), adj=self.graph_data['adj'], pen=self.graph_data['pen'])
 
 
+### ============================
+### ============================
+### ============================
+### ============================
+### TESTING purposes only, below
+
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -79,6 +87,7 @@ class MainApp(QMainWindow):
 
 
 if __name__ == '__main__':
+    # TESTING
     app = QApplication(sys.argv)
     ex = MainApp()
     sys.exit(app.exec_())

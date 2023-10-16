@@ -1,6 +1,9 @@
+"""This module contains the code for the GUI"""
+
 import sys
 from pathlib import Path
 import json
+import threading
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout
@@ -394,21 +397,26 @@ class MainApp(QMainWindow):
         # Convert the mineral name to lowercase
         mineral_name_lower = mineral_name.lower()
 
-        if wavelength != '':
-            # Use the LOWER function on names column and = operator for comparison
-            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ? AND wavelength=?", (mineral_name_lower, wavelength))
-        else:
-            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ?", (mineral_name_lower,))
-        results = cursor.fetchall()
+        # Search takes place in its own thread (not quite working yet 
+        def target():
+            if wavelength != '':
+                # Use the LOWER function on names column and = operator for comparison
+                cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ? AND wavelength=?", (mineral_name_lower, wavelength))
+            else:
+                cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ?", (mineral_name_lower,))
+            results = cursor.fetchall()
 
-        # Populate the results list
-        self.results_list.clear()
-        self.data_to_plot = {}
-        for result in results:
-            self.results_list.addItem(result[0])
-            self.data_to_plot[result[0]] = (result[1], result[2])
+            # Populate the results list
+            self.results_list.clear()
+            self.data_to_plot = {}
+            for result in results:
+                self.results_list.addItem(result[0])
+                self.data_to_plot[result[0]] = (result[1], result[2])
 
-        connection.close()
+            connection.close()  
+        
+        thread = threading.Thread(target=target)
+        thread.start()
 
     def plot_selected_spectra(self):
         selected_files = [item.text() for item in self.results_list.selectedItems()]

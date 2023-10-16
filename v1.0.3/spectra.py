@@ -18,8 +18,6 @@ class Spectrum:
         self.x = self.x[mask]
         self.y = self.y[mask]
         self._add_to_history()
-
-    # Add more methods as needed...
     
     def undo(self):
         if self._current > 0:
