@@ -9,7 +9,7 @@ import threading
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidget, QAbstractItemView, QListView
-from PyQt6 import QtCore
+from PyQt6 import QtCore 
 from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
