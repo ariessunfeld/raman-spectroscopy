@@ -34,9 +34,6 @@ class MainApp(QMainWindow):
         self.database_path = None
         self.baseline_data = None
         self.baseline_plot = None
-        self.unknown_x = None
-        self.unknown_y = None
-        self.unknown_y_corrected = None
         self.loaded_spectrum = None
         self.spectrum = None
         self.cropping = False
@@ -48,26 +45,26 @@ class MainApp(QMainWindow):
         self.command_history = CommandHistory()
 
     def init_keyboard_shortcuts(self):
-            undo_shortcut = QShortcut(QKeySequence('Ctrl+Z'), self)
-            undo_shortcut.activated.connect(self.undo)
+        undo_shortcut = QShortcut(QKeySequence('Ctrl+Z'), self)
+        undo_shortcut.activated.connect(self.undo)
 
-            redo_shortcut = QShortcut(QKeySequence('Ctrl+Shift+Z'), self)
-            redo_shortcut.activated.connect(self.redo)
+        redo_shortcut = QShortcut(QKeySequence('Ctrl+Shift+Z'), self)
+        redo_shortcut.activated.connect(self.redo)
 
-            load_spectrum_shortcut = QShortcut(QKeySequence('Ctrl+L'), self)
-            load_spectrum_shortcut.activated.connect(self.load_unknown_spectrum)
+        load_spectrum_shortcut = QShortcut(QKeySequence('Ctrl+L'), self)
+        load_spectrum_shortcut.activated.connect(self.load_unknown_spectrum)
 
-            crop_shortcut = QShortcut(QKeySequence('Ctrl+R'), self)
-            crop_shortcut.activated.connect(self.toggle_crop_mode)
+        crop_shortcut = QShortcut(QKeySequence('Ctrl+R'), self)
+        crop_shortcut.activated.connect(self.toggle_crop_mode)
 
-            baseline_shortcut = QShortcut(QKeySequence('Ctrl+E'), self)
-            baseline_shortcut.activated.connect(self.baseline_callback)
+        baseline_shortcut = QShortcut(QKeySequence('Ctrl+E'), self)
+        baseline_shortcut.activated.connect(self.baseline_callback)
 
-            discretize_shortcut = QShortcut(QKeySequence('Ctrl+D'), self)
-            discretize_shortcut.activated.connect(self.discretize_baseline)
+        discretize_shortcut = QShortcut(QKeySequence('Ctrl+D'), self)
+        discretize_shortcut.activated.connect(self.discretize_baseline)
 
-            
-
+        save_shortcut = QShortcut(QKeySequence('Ctrl+S'), self)
+        save_shortcut.activated.connect(self.save_edited_spectrum)
         
     def undo(self):
         print('Undo activated')
@@ -306,7 +303,7 @@ class MainApp(QMainWindow):
 
         if fname:  # Check if user didn't cancel the dialog
             with open(fname, 'w') as f:
-                for x, y in zip(self.unknown_x, self.unknown_y):
+                for x, y in zip(self.spectrum.x, self.spectrum.y):
                     f.write(f"{x} {y}\n")
             
             self.plot1_log.addItem(f'Saved edited spectrum to: {fname}')
@@ -366,8 +363,8 @@ class MainApp(QMainWindow):
     def match_range(self):
         name = self.align_button.text()
         if name == 'Align X Axis':
-            if self.unknown_x is not None:
-                lower, upper = min(self.unknown_x), max(self.unknown_x)
+            if self.spectrum.x is not None:
+                lower, upper = min(self.spectrum.x), max(self.spectrum.x)
                 self.plot2.setXRange(lower, upper)
                 self.align_button.setText('Reset X Axis')
         else: # Reset case
@@ -411,25 +408,22 @@ class MainApp(QMainWindow):
 
         # Search takes place in its own thread (not quite working yet)
         # TODO fix threading
-        def target():
-            if wavelength != '':
-                # Use the LOWER function on names column and = operator for comparison
-                cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ? AND wavelength=?", (mineral_name_lower, wavelength))
-            else:
-                cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ?", (mineral_name_lower,))
-            results = cursor.fetchall()
+        if wavelength != '':
+            # Use the LOWER function on names column and = operator for comparison
+            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ? AND wavelength=?", (mineral_name_lower, wavelength))
+        else:
+            cursor.execute("SELECT filename, data_x, data_y FROM Spectra WHERE LOWER(names) = ?", (mineral_name_lower,))
+        results = cursor.fetchall()
 
-            # Populate the results list
-            self.results_list.clear()
-            self.data_to_plot = {}
-            for result in results:
-                self.results_list.addItem(result[0])
-                self.data_to_plot[result[0]] = (result[1], result[2])
+        # Populate the results list
+        self.results_list.clear()
+        self.data_to_plot = {}
+        for result in results:
+            self.results_list.addItem(result[0])
+            self.data_to_plot[result[0]] = (result[1], result[2])
 
-            connection.close()  
+        connection.close()  
         
-        thread = threading.Thread(target=target)
-        thread.start()
 
     def plot_selected_spectra(self):
         selected_files = [item.text() for item in self.results_list.selectedItems()]
@@ -457,13 +451,9 @@ class MainApp(QMainWindow):
         height = float(height) if height else None
         prominence = float(prominence) if prominence else None
 
-        y_to_use = self.unknown_y
-        if hasattr(self, 'unknown_y_corrected') and self.unknown_y_corrected is not None:
-            y_to_use = self.unknown_y_corrected
-
         peaks_x, peaks_y = get_peaks(
-            self.unknown_x, 
-            y_to_use, 
+            self.spectrum.x, 
+            self.spectrum.y, 
             width=width, 
             rel_height=rel_height, 
             height=height, 
