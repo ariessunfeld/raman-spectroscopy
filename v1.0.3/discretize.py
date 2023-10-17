@@ -8,10 +8,12 @@ import pyqtgraph as pg
 
 class DraggableScatter(pg.ScatterPlotItem):
     pointDragged = QtCore.pyqtSignal()
+    dragFinished = QtCore.pyqtSignal(int, float, float, float, float) 
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.draggedPointIndex = None
+        self.startPos = None
 
     def mousePressEvent(self, ev):
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
@@ -19,6 +21,7 @@ class DraggableScatter(pg.ScatterPlotItem):
             points = self.pointsAt(pos)
             if len(points):
                 self.draggedPointIndex = points[0].index()
+                self.startPos = (self.data['x'][self.draggedPointIndex], self.data['y'][self.draggedPointIndex])
                 ev.accept()
             else:
                 ev.ignore()
@@ -34,7 +37,11 @@ class DraggableScatter(pg.ScatterPlotItem):
         ev.accept()
 
     def mouseReleaseEvent(self, ev):
+        print('mouseReleaseEvent occurred')
         if self.draggedPointIndex is not None:
+            endPos = (self.data['x'][self.draggedPointIndex], self.data['y'][self.draggedPointIndex])
+            self.dragFinished.emit(self.draggedPointIndex, *self.startPos, *endPos)
+            print('Emitted drafFinished signal')
             self.draggedPointIndex = None
         super().mouseReleaseEvent(ev)
 
