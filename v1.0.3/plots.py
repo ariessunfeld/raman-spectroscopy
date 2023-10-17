@@ -9,7 +9,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
 
-class CustomPlotWidget(pg.PlotWidget):
+class CroppablePlotWidget(pg.PlotWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.cropping = False

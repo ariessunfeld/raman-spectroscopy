@@ -1,5 +1,6 @@
 """This module contains the code for the GUI"""
 
+import os
 import sys
 from pathlib import Path
 import json
@@ -9,7 +10,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHB
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidget, QAbstractItemView, QListView
 from PyQt6 import QtCore
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
 
@@ -21,7 +22,10 @@ from utils import get_xy_from_file, deserialize, baseline_als, get_peaks
 
 from discretize import DraggableGraph, DraggableScatter
 from spectra import Spectrum
-from plots import CustomPlotWidget
+from plots import CroppablePlotWidget
+from commands import CommandHistory, LoadSpectrumCommand, PointDragCommand
+from commands import CommandSpectrum, EstimateBaselineCommand, CorrectBaselineCommand
+from commands import CropCommand
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -34,13 +38,46 @@ class MainApp(QMainWindow):
         self.unknown_y = None
         self.unknown_y_corrected = None
         self.loaded_spectrum = None
+        self.spectrum = None
         self.cropping = False
         self.crop_region = None
         with open('config.json', 'r') as f:
             self.config = json.load(f)
-        self.initUI()
+        self.init_UI()
+        self.init_keyboard_shortcuts()
+        self.command_history = CommandHistory()
 
-    def initUI(self):
+    def init_keyboard_shortcuts(self):
+            undo_shortcut = QShortcut(QKeySequence('Ctrl+Z'), self)
+            undo_shortcut.activated.connect(self.undo)
+
+            redo_shortcut = QShortcut(QKeySequence('Ctrl+Shift+Z'), self)
+            redo_shortcut.activated.connect(self.redo)
+
+            load_spectrum_shortcut = QShortcut(QKeySequence('Ctrl+L'), self)
+            load_spectrum_shortcut.activated.connect(self.load_unknown_spectrum)
+
+            crop_shortcut = QShortcut(QKeySequence('Ctrl+R'), self)
+            crop_shortcut.activated.connect(self.toggle_crop_mode)
+
+            baseline_shortcut = QShortcut(QKeySequence('Ctrl+E'), self)
+            baseline_shortcut.activated.connect(self.baseline_callback)
+
+            discretize_shortcut = QShortcut(QKeySequence('Ctrl+D'), self)
+            discretize_shortcut.activated.connect(self.discretize_baseline)
+
+            
+
+        
+    def undo(self):
+        print('Undo activated')
+        self.command_history.undo()
+    
+    def redo(self):
+        print('Redo activated')
+        self.command_history.redo()
+
+    def init_UI(self):
         """Initialization method for the User Interface
         main_layout
           |--search_layout
@@ -124,7 +161,7 @@ class MainApp(QMainWindow):
         
         # PlotWidget: Plot 1
         #self.plot1 = pg.PlotWidget(self)
-        self.plot1 = CustomPlotWidget(self)
+        self.plot1 = CroppablePlotWidget(self)
         self.plot1.setLabel('left', 'Intensity')
         self.plot1.setLabel('bottom', 'Raman Shift', units='cm<sup>-1</sup>')
         plot1_layout.addWidget(self.plot1, 0, 0, 1, 2)
@@ -279,22 +316,10 @@ class MainApp(QMainWindow):
         if self.crop_region is None:
             return
         
-        # Get the start and end positions of the crop region.
-        start_pos, end_pos = self.crop_region.getRegion()
+        crop_start_x, crop_end_x = self.crop_region.getRegion()
         
-        # Find the indices in self.unknown_x that are within the crop region.
-        indices_to_crop = np.where((self.unknown_x >= start_pos) & (self.unknown_x <= end_pos))
-
-        # Set the corresponding y-values to None.
-        self.unknown_y[indices_to_crop] = np.nan
-
-        # Update the plot to reflect the change.
-        self.plot1.clear()
-        #self.plot1.setData(self.unknown_x, self.unknown_y, connect='finite')
-        self.plot1.plot(self.unknown_x, self.unknown_y)
-        self.plot1.autoRange()
-
-        self.plot1_log.addItem(f'Cropped spectrum from {round(start_pos)} to {round(end_pos)} cm^-1')
+        command = CropCommand(self, crop_start_x, crop_end_x)
+        self.command_history.execute(command)
 
         # Remove the crop_region item from the plot.
         self.plot1.removeItem(self.crop_region)
@@ -305,16 +330,15 @@ class MainApp(QMainWindow):
     def update_discretized_baseline(self):
         """Updates the baseline data of the loaded spectrum whenever user moves a point after discretization"""
         self.draggableGraph.setData(pos=np.array(list(zip(self.draggableScatter.data['x'], self.draggableScatter.data['y']))))
-        self.baseline_data = np.interp(self.unknown_x, self.draggableScatter.data['x'], self.draggableScatter.data['y'])
+        self.baseline_data = np.interp(self.spectrum.x, self.draggableScatter.data['x'], self.draggableScatter.data['y'])
         if hasattr(self, 'interpolated_baseline'):
             self.plot1.removeItem(self.interpolated_baseline)
-        self.interpolated_baseline = self.plot1.plot(self.unknown_x, self.baseline_data, pen='g')
+        self.interpolated_baseline = self.plot1.plot(self.spectrum.x, self.baseline_data, pen='g')
 
     def discretize_baseline(self):
         # Discretizing the baseline
-        x_vals = np.arange(self.unknown_x[0], self.unknown_x[-1], self.config['discrete baseline step size'])
-        y_vals = np.interp(x_vals, self.unknown_x, self.baseline_data)
-        print(x_vals, y_vals)
+        x_vals = np.arange(self.spectrum.x[0], self.spectrum.x[-1], self.config['discrete baseline step size'])
+        y_vals = np.interp(x_vals, self.spectrum.x, self.baseline_data)
 
         # Clear the previous discretized baseline if it exists
         if hasattr(self, 'draggableScatter'):
@@ -325,6 +349,7 @@ class MainApp(QMainWindow):
         # TODO fix color not working... not sure if we need to set bursh or color or symbolBrush or pen or what...
         self.draggableScatter = DraggableScatter(x=x_vals, y=y_vals, size=self.config['discrete baseline point size'], symbolBrush=eval(self.config['discrete baseline point color']))
         self.draggableScatter.pointDragged.connect(self.update_discretized_baseline)
+        self.draggableScatter.dragFinished.connect(self.handle_drag_finished)
         self.draggableGraph = DraggableGraph(scatter_data={'x': x_vals, 'y': y_vals})
         
         self.plot1.addItem(self.draggableScatter)
@@ -332,7 +357,11 @@ class MainApp(QMainWindow):
 
         # Replace the smooth baseline with the discretized one
         self.plot1.removeItem(self.baseline_plot)
-        #self.baseline_plot = self.plot1.plot(x_vals, y_vals, pen='r', symbolBrush=(255,0,0), symbolSize=5, symbolPen='w')
+
+    def handle_drag_finished(self, index, startX, startY, endX, endY):
+        print('handle_drag_finished was called')
+        command = PointDragCommand(self, index, startX, startY, endX, endY)
+        self.command_history.execute(command)
 
     def match_range(self):
         name = self.align_button.text()
@@ -354,34 +383,17 @@ class MainApp(QMainWindow):
     def load_unknown_spectrum(self):
         fname = QFileDialog.getOpenFileName(self, 'Select Raman Spectrum', '')
         if fname[0]:
-            self.plot1_log.clear()
-            self.unknown_x = None
-            self.unknown_y = None
-            self.unknown_y_corrected = None
-            self.plot1_log.addItem(f'Loaded file: {fname[0]}')
-            self.button_baseline.setText('Estimate Baseline')
             self.unknown_spectrum_path = Path(fname[0])
-            self.unknown_x, self.unknown_y = get_xy_from_file(self.unknown_spectrum_path)
-            self.plot1.clear()
-            self.plot1.plot(self.unknown_x, self.unknown_y)
-            self.plot1.autoRange()
+            command = LoadSpectrumCommand(self, *get_xy_from_file(self.unknown_spectrum_path))
+            self.command_history.execute(command)
 
     def baseline_callback(self):
-        name = self.button_baseline.text()
-        if name == 'Estimate Baseline':
-            self.button_baseline.setText('Apply Baseline Correction')
-            self.baseline_data = baseline_als(self.unknown_y)
-            self.plot1_log.addItem('Baseline estimated')
-            if self.baseline_plot is not None:
-                self.plot1.removeItem(self.baseline_plot)
-            self.baseline_plot = self.plot1.plot(self.unknown_x, self.baseline_data, pen='r')
-        else: 
-            self.unknown_y = self.unknown_y - self.baseline_data
-            self.plot1_log.addItem('Baseline corrected')
-            self.button_baseline.setText('Estimate Baseline')
-            self.plot1.clear()
-            self.plot1.plot(self.unknown_x, self.unknown_y)
-            self.plot1.autoRange()
+        if self.button_baseline.text() == "Estimate Baseline":
+            command = EstimateBaselineCommand(self, baseline_als(self.spectrum.y))
+            self.command_history.execute(command)
+        else:
+            command = CorrectBaselineCommand(self)
+            self.command_history.execute(command)
 
     def search_database(self):
         if self.database_label.text() == "Database: None selected":
@@ -397,7 +409,8 @@ class MainApp(QMainWindow):
         # Convert the mineral name to lowercase
         mineral_name_lower = mineral_name.lower()
 
-        # Search takes place in its own thread (not quite working yet 
+        # Search takes place in its own thread (not quite working yet)
+        # TODO fix threading
         def target():
             if wavelength != '':
                 # Use the LOWER function on names column and = operator for comparison
@@ -468,9 +481,6 @@ class MainApp(QMainWindow):
             first_15_peaks = peaks_x[:15]
             self.plot1_log.addItem(f'Peaks: {", ".join([str(x) for x in sorted(first_15_peaks)])}...')
             self.textbox_peaks.setText(','.join([str(round(x,1)) for x in sorted(first_15_peaks)]))
-
-
-
 
     def on_search(self):
         if self.database_label.text() == "Database: None selected":
