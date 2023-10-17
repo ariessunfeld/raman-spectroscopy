@@ -151,31 +151,6 @@ def get_xy_from_file(file):
 def deserialize(vec):
     return np.array(eval(vec))
 
-def _baseline_als(y, lam=1e5, p=0.05, niter=1000):
-    """
-    Compute the baseline of a signal using asymmetric least squares.
-
-    Parameters:
-    - y: 1D numpy array, the signal
-    - lam: float, lambda parameter to control smoothness (larger -> more smooth)
-    - p: float, asymmetry parameter (between [0,1])
-    - niter: int, number of iterations
-
-    Returns:
-    - 1D numpy array, baseline estimate
-    """
-    L = len(y)
-    D = diags([1, -2, 1], [0, -1, -2], shape=(L, L-2))
-    D = lam * D.dot(D.transpose())  # Precompute this matrix
-    w = np.ones(L)
-    W = diags([w], [0], shape=(L, L))
-    for i in range(niter):
-        W.setdiag(w)  # Update the weights
-        Z = W + D
-        z = spsolve(csc_matrix(Z), w*y)
-        w = p * (y > z) + (1-p) * (y < z)
-    return z
-
 def baseline_als(y, lam=1e5, p=0.05, niter=1000):
     L = len(y)
     valid_indices = ~np.isnan(y)
