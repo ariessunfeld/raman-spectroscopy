@@ -7,7 +7,7 @@ import json
 import threading
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
-from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout
+from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout, QDialog
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidget, QAbstractItemView, QListView
 from PyQt6 import QtCore 
 from PyQt6.QtGui import QColor, QShortcut, QKeySequence
@@ -43,6 +43,47 @@ class MainApp(QMainWindow):
         self.init_UI()
         self.init_keyboard_shortcuts()
         self.command_history = CommandHistory()
+
+    def show_whats_new(self):
+        # Load the new features from whats_new.py
+        try:
+            from whats_new import new_features, WhatsNewDialog
+            platform_key = 'nt' if os.name == 'nt' else 'posix'
+            messages = new_features.get(platform_key, [])
+
+            # Display the custom dialog
+            dialog = WhatsNewDialog(messages, self)
+            response = dialog.exec()
+            
+            # If the dialog was closed after viewing all messages, set show_whats_new to False
+            if response == QDialog.DialogCode.Accepted and dialog.current_index == len(messages) - 1:
+                self.config['show_whats_new'] = False
+                with open('config.json', 'w') as f:
+                    json.dump(self.config, f, indent=4)
+
+        except ImportError:
+            pass  # If whats_new.py is not found, just skip showing the messages
+
+    def _show_whats_new(self):
+        """Display new-since-last-update features to user"""
+        try:
+            from whats_new import new_features
+            platform_key = 'nt' if os.name == 'nt' else 'posix'
+            messages = new_features.get(platform_key, [])
+
+            # Display each message
+            for message in messages:
+                response = QMessageBox.information(self, "What's New", message, buttons=QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+                if response == QMessageBox.StandardButton.Cancel:
+                    break
+
+            # If the user has seen all the messages, set show_whats_new to False
+            self.config['show_whats_new'] = False
+            with open('config.json', 'w') as f:
+                json.dump(self.config, f, indent=4)
+
+        except ImportError:
+            pass
 
     def init_keyboard_shortcuts(self):
         undo_shortcut = QShortcut(QKeySequence('Ctrl+Z'), self)
@@ -508,4 +549,6 @@ class MainApp(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = MainApp()
+    if ex.config.get('show_whats_new', False):
+        ex.show_whats_new()
     sys.exit(app.exec())
