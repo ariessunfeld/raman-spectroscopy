@@ -64,27 +64,6 @@ class MainApp(QMainWindow):
         except ImportError:
             pass  # If whats_new.py is not found, just skip showing the messages
 
-    def _show_whats_new(self):
-        """Display new-since-last-update features to user"""
-        try:
-            from whats_new import new_features
-            platform_key = 'nt' if os.name == 'nt' else 'posix'
-            messages = new_features.get(platform_key, [])
-
-            # Display each message
-            for message in messages:
-                response = QMessageBox.information(self, "What's New", message, buttons=QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-                if response == QMessageBox.StandardButton.Cancel:
-                    break
-
-            # If the user has seen all the messages, set show_whats_new to False
-            self.config['show_whats_new'] = False
-            with open('config.json', 'w') as f:
-                json.dump(self.config, f, indent=4)
-
-        except ImportError:
-            pass
-
     def init_keyboard_shortcuts(self):
         undo_shortcut = QShortcut(QKeySequence('Ctrl+Z'), self)
         undo_shortcut.activated.connect(self.undo)
