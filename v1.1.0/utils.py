@@ -173,8 +173,6 @@ def baseline_als(y, lam=1e5, p=0.05, niter=1000):
     z[valid_indices] = z_valid
     return z
 
-
-
 def get_peaks(x, y, width, rel_height, height, prominence):
     peaks, _ = find_peaks(y, width=width, rel_height=rel_height, height=height, prominence=prominence)
     return x[peaks], y[peaks]
