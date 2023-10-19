@@ -22,12 +22,12 @@ Raman DP-ID also implements several search algorithms to help identify the miner
 <table>
   <tr>
     <td>
-        <img src="assets/baseline-estimated.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate" width="200"/>
+        <img src="assets/baseline-estimated.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate" width="400"/>
         <br>
         Automatic spectrum baseline estimate (screenshot of Raman DP-ID usage)
     </td>
     <td>
-        <img src="assets/baseline-discretized.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate after discretization, where points are now draggable" width="200"/>
+        <img src="assets/baseline-discretized.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate after discretization, where points are now draggable" width="400"/>
         <br>
         Baseline estimate after discretization, where points are now draggable, and the baseline is editable
     </td>
