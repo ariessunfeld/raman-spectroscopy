@@ -63,14 +63,48 @@ Raman DP-ID also implements several search algorithms to help identify the miner
 
 # Usage
 
-- Load a database (top left button; select the `raman_spectra_excellent_and_fair.db` file)
-- Load a file for analysis (example file included: `ricolite-a_3a_10s_100p...`
-- Enter peak detection parameters (recommended: `width=5`, `rel_height=0.5`, can increase `height` if necessary)
-- Click Find Peaks button
-- Enter a Tolerance (top right)
-- Click Search
-- Using the mineral names that appear, enter them into the box in the bottom right and click Search there
-- Select a spectrum or spectra and press Plot
-- Align X axis if necessary
+## Data Processing
 
+To use Raman DP-ID as a data processing tool, no database is required.
+- Click `Load File` and select your Raman spectrum (supported filetypes: `.csv`, `.txt`, more coming soon) **(see `assets/demo/example_spectrum.txt` for an example file)**
+- Click `Crop` to enter Crop Mode; click and drag to select a region of the spectrum to delete
+- Click `Apply Crop` to delete the selected region
+- Click `Estimate Baseline` to generate an automatic baseline correction estimate
+- Click `Apply Baseline Correction` to subtract the estimate from the spectrum OR click `Discretize Baseline`.
+- If you discretized the baseline, click and drag the baseline points to edit the line. Then click `Apply Baseline Correction` to subtract the current baseline from the spectrum.
+- Click `Save` to save the edited spectrum to disk. Defaults to `[filename]_processed.txt`.
+
+## Mineral Identification
+
+To use Raman DP-ID as a mineral identification tool, a SQLite database of Raman spectra with labeled peak positions is required. Contact ariessunfeld@gmail.com for a download link (automatic download coming soon). Once you have a database,
+
+- Load the database (top left button)
+- Load your file for analysis
+- Apply any processing / editing as necessary (see steps above)
+- Enter peak detection parameters
+  - Good default values: `width=5, rel_height=0.5, height=1000`
+- Click `Find Peaks`
+  - Peaks box (top middle) will auto-fill with detected peak positions
+- Enter a Search Tolerance (top right text entry)
+  - Good default value: `2`
+- Click `Search` (top right)
+- To plot a matching mineral, copy the name into the text entry in the bottom right and click `Search` (bottom right)
+- Select one or more matching spectra from among those that appear and click `Plot`
+- Click `Align X axis` to visually match the peaks with those of your spectrum
+
+## Tips
+
+Raman DP-ID supports many **keyboard shortcuts**, including
+- **macOS / (Windows) : Description**
+- `Cmd+L` / (`Ctrl+L`) : Load a spectrum file
+- `Cmd+S` / (`Ctrl+S`) : Save edited spectrum
+- `Cmd+E` / (`Ctrl+E`) : Estimate Baseline & Apply Baseline Correction
+- `Cmd+D` / (`Ctrl+D`) : Discretize Baseline
+- `Cmd+R` / (`Ctrl+R`) : Enter Crop Mode & Apply Crop
+- `Cmd+Z` / (`Ctrl+Z`) : Undo last action
+- `Cmd+Shift+Z` / (`Ctrl+Shift+Z`) : Redo last undo
+
+# Questions / Comments / Suggestions?
+
+Please reach out to ariessunfeld@gmail.com!
 
