@@ -1,6 +1,40 @@
+# raman-dp-id
+
+Raman Spectroscopy Data Processing and Mineral Identification Tool, v1.1.0
+
 # Overview
 
-Raman data processing and mineral identification tool, v1.0.2
+Raman DP-ID is a data-processing and mineral identification tool that serves two purposes:
+- Streamline the Raman data **post-processing pipeline**
+- Enable **automatic mineral identification** directly from Raman spectra
+
+## Features
+
+Raman DP-ID supports multiple data-processing features, including:
+- spectrum cropping
+- artifact removal
+- automatic **baseline correction**
+- manual baseline correction
+- automatic **peak identification**
+
+Raman DP-ID also implements several search algorithms to help identify the mineral(s) present in your sample using the peaks idenitifed in your spectra. Reference spectra come from [RRUFF](https://rruff.info/zipped_data_files/raman/) and have been labeled with peak positions. 
+
+<table>
+  <tr>
+    <td>
+        <img src="assets/baseline-estimated.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate" width="200"/>
+        <br>
+        Automatic spectrum baseline estimate (screenshot of Raman DP-ID usage)
+    </td>
+    <td>
+        <img src="assets/baseline-discretized.png" alt="Screenshot of Raman DP-ID app showing automatic baseline estimate after discretization, where points are now draggable" width="200"/>
+        <br>
+        Baseline estimate after discretization, where points are now draggable, and the baseline is editable
+    </td>
+  </tr>
+</table>
+
+
 
 # Setup (macOS)
 

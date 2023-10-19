@@ -7,14 +7,15 @@ GUI's `command_history` list. This structure enables Undo/Redo functionality in 
 
 import numpy as np
 
+
 class Command:
     """Base class for Commands"""
 
     def execute(self):
-        pass
+        raise NotImplementedError
 
     def undo(self):
-        pass
+        raise NotImplementedError
 
 
 
@@ -50,15 +51,16 @@ class CommandHistory:
     def undo(self):
         if self.index < 0:
             return
+            # Add the "play" sound
         self.commands[self.index].undo()
         self.index -= 1
 
     def redo(self):
         if self.index == len(self.commands) - 1:
             return
+            # Add the "play" sound
         self.index += 1
         self.commands[self.index].execute()
-
 
 
 class LoadSpectrumCommand(Command):
@@ -67,7 +69,7 @@ class LoadSpectrumCommand(Command):
         self.app = app
         self.new_spectrum = CommandSpectrum(xdata, ydata)
         if self.app.spectrum is not None:
-            self.old_spectrum = app.spectrum.copy()
+            self.old_spectrum = self.app.spectrum.copy()
         else:
             self.old_spectrum = None
 
@@ -77,7 +79,7 @@ class LoadSpectrumCommand(Command):
         # Backup plot log
         for idx in range(self.app.plot1_log.count()):
             line_to_back_up = self.app.plot1_log.item(idx).text()
-            print('backing up:', line_to_back_up)
+            #print('backing up:', line_to_back_up)
             self.old_plot1_log.append(line_to_back_up)
 
         # Aesthetics
