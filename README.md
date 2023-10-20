@@ -44,8 +44,8 @@ Raman DP-ID also implements several search algorithms to help identify the miner
 ## Automatic
 - Download the [latest release](https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip) from GitHub
 - Open Finder and unzip the latest release (by double-clicking the `.zip` file)
-- **Right-click** `launcher.command`, click Open, then click Open again.
-  - Note: If this does not open a new Terminal window automatically, open the Terminal, navigate to the folder containing `launcher.command`, execute `ls` to make sure you see that file, then run `chmod +x launcher.command` to give this file executable privileges. Then repeat this step.
+- **Right-click** `mac_launcher.command`, click Open, then click Open again.
+  - Note: If this does not open a new Terminal window automatically, open the Terminal, navigate to the folder containing `mac_launcher.command`, execute `ls` to make sure you see that file, then run `chmod +x mac_launcher.command` to give this file executable privileges. Then repeat this step.
 
 ## Manual
 - Download the [latest release](https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip) from GitHub
@@ -59,9 +59,27 @@ Raman DP-ID also implements several search algorithms to help identify the miner
 
 # Setup (Windows)
 
-- Coming soon!
+- **Note: This program requires `python3.11+`**
+
+## Automatic
+- Download the [latest release](https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip) from GitHub
+- Open File Browser and unzip the latest release (by clicking `Extract All`)
+- Browse into the newly unzipped folder and double-click the `windows_launcher.bat` file.
+  - If it doesn't open right away, click `More Info` and then `Open Anyway`.
+
+## Manual
+- Download the [latest release](https://github.com/ariessunfeld/raman-spectroscopy/releases/download/raman-dp-id/raman-dp-id.zip) from GitHub
+- Open File Browser and unzip the latest release (by clicking `Extract All`)
+- Open the Command Prompt and navigate into the newly extracted folder
+- Create a new virtual environment called `venv` by running `python3.11 -m venv venv`
+- Activate the new virtual environment by running `call venv\Scripts\activate.bat`
+- Install the necessary packages into the virtual environment by running `pip install -r requirements.txt`
+- Navigate into the latest version folder (e.g., `v1.2.3`) by running `cd v1.2.3` (replace with actual version number)
+- Launch the program by running `python gui.py`
 
 # Usage
+
+After setup, you can launch the Raman DP-ID tool easily by double-clicking the launch file for your operating system. On macOS, double-click `mac_launcher.command`. On Windows, double-click `windows_launcher.bat`. 
 
 ## Data Processing
 
