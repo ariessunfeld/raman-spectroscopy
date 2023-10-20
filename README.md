@@ -126,3 +126,9 @@ Raman DP-ID supports many **keyboard shortcuts**, including
 
 Please reach out to ariessunfeld@gmail.com!
 
+# Acknowledgements
+- **Development**: Ari Essunfeld
+- **Domain Expertise**: Jade Comellas
+- **Consultation**: Meryem Berrada, Tayro Acosta-Maeda
+- **Beta Testing**: Ongoing (thank you to all who provide feedback!)
+
