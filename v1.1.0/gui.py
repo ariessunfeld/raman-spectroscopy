@@ -63,12 +63,12 @@ class MainApp(QMainWindow):
         # Additionally, set their size policy to be Preferred for width, so they try to maintain this width
         policy1 = self.plot1.sizePolicy()
         policy1.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
-        policy1.setVerticalPolicy(QSizePolicy.Policy.Expanding)
+        policy1.setVerticalPolicy(QSizePolicy.Policy.Preferred)
         self.plot1.setSizePolicy(policy1)
 
         policy2 = self.plot2.sizePolicy()
         policy2.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
-        policy2.setVerticalPolicy(QSizePolicy.Policy.Expanding)
+        policy2.setVerticalPolicy(QSizePolicy.Policy.Preferred)
         self.plot2.setSizePolicy(policy2)
 
         # Make sure to call the base class' method to ensure the event is handled properly
@@ -137,6 +137,8 @@ class MainApp(QMainWindow):
         """
 
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # DATABASE & SEARCH AREA
         search_layout = QHBoxLayout()
@@ -264,10 +266,21 @@ class MainApp(QMainWindow):
         self.textbox_prominence.setPlaceholderText('`prominence`')
         plot1_peak_params_layout.addWidget(self.textbox_prominence, 1, 1)
 
-        # Button: Fit peaks
+        # Button: Find peaks
+        plot1_peaks_buttons_layout = QHBoxLayout()
+        plot1_peaks_buttons_widget = QWidget()
+        plot1_peaks_buttons_widget.setLayout(plot1_peaks_buttons_layout)
+        plot1_buttons_layout.addWidget(plot1_peaks_buttons_widget)
+
         self.button_find_peaks = QPushButton('Find Peaks', self)
         self.button_find_peaks.clicked.connect(self.find_peaks)
-        plot1_buttons_layout.addWidget(self.button_find_peaks)
+        #plot1_buttons_layout.addWidget(self.button_find_peaks)
+        plot1_peaks_buttons_layout.addWidget(self.button_find_peaks)
+
+        # Button: Show peak positions
+        self.button_show_peak_labels = QPushButton('Show Labels', self)
+        self.button_show_peak_labels.clicked.connect(self.toggle_labels_callback)
+        plot1_peaks_buttons_layout.addWidget(self.button_show_peak_labels)
 
         # LisWidget: Log for Plot 1
         self.plot1_log = QListWidget()
@@ -489,6 +502,27 @@ class MainApp(QMainWindow):
         
         self.plot2.autoRange()
 
+    def toggle_labels_callback(self):
+        # Remove any previous text items (assuming you have them stored in a list attribute `self.peak_texts`)
+        if hasattr(self, 'peak_texts') and self.peak_texts:
+            for text_item in self.peak_texts:
+                self.plot1.removeItem(text_item)
+            self.peak_texts = []
+
+        show = self.button_show_peak_labels.text() == 'Show Labels'
+
+        if show:
+            # Create and add the text items to the plot
+            for x, y in zip(self.peaks_x, self.peaks_y):
+                text_item = pg.TextItem(str(round(x, 1)), anchor=(0, 0), color=(255, 0, 0), angle=90)
+                text_item.setPos(x, y)  # Adjusting the y position to be slightly above the peak
+                self.plot1.addItem(text_item)
+                if not hasattr(self, 'peak_texts'):
+                    self.peak_texts = []
+                self.peak_texts.append(text_item)
+            self.button_show_peak_labels.setText('Hide Labels')
+        else:
+            self.button_show_peak_labels.setText('Show Labels')
         
     def find_peaks(self):
         width = self.textbox_width.text()
@@ -501,7 +535,7 @@ class MainApp(QMainWindow):
         height = float(height) if height else None
         prominence = float(prominence) if prominence else None
 
-        peaks_x, peaks_y = get_peaks(
+        self.peaks_x, self.peaks_y = get_peaks(
             self.spectrum.x, 
             self.spectrum.y, 
             width=width, 
@@ -512,13 +546,13 @@ class MainApp(QMainWindow):
         if hasattr(self, 'peak_plot') and self.peak_plot:
             self.plot1.removeItem(self.peak_plot)
             self.peak_plot = None
-        self.peak_plot = self.plot1.plot(peaks_x, peaks_y, pen=None, symbol='o', symbolSize=7, symbolBrush=(255, 0, 0))
+        self.peak_plot = self.plot1.plot(self.peaks_x, self.peaks_y, pen=None, symbol='o', symbolSize=7, symbolBrush=(255, 0, 0))
         
-        if len(peaks_x) < 15:
-            self.plot1_log.addItem(f'Peaks: {", ".join([str(x) for x in sorted(peaks_x)])}')
-            self.textbox_peaks.setText(','.join([str(round(x,1)) for x in sorted(peaks_x)]))
+        if len(self.peaks_x) < 15:
+            self.plot1_log.addItem(f'Peaks: {", ".join([str(x) for x in sorted(self.peaks_x)])}')
+            self.textbox_peaks.setText(','.join([str(round(x,1)) for x in sorted(self.peaks_x)]))
         else:
-            first_15_peaks = peaks_x[:15]
+            first_15_peaks = self.peaks_x[:15]
             self.plot1_log.addItem(f'Peaks: {", ".join([str(x) for x in sorted(first_15_peaks)])}...')
             self.textbox_peaks.setText(','.join([str(round(x,1)) for x in sorted(first_15_peaks)]))
 
