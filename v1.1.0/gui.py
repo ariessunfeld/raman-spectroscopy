@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from pathlib import Path
 import json
 import threading
@@ -44,7 +45,7 @@ class MainApp(QMainWindow):
         current_size = self.size()
         self.resize(current_size.width() + 1, current_size.height())
         self.resize(current_size.width(), current_size.height())
-        self.showFullScreen()
+        #self.showFullScreen()
         self.init_keyboard_shortcuts()
         self.command_history = CommandHistory()
 
@@ -594,4 +595,5 @@ if __name__ == '__main__':
     ex = MainApp()
     if ex.config.get('show_whats_new', False):
         ex.show_whats_new()
+    ex.showFullScreen()
     sys.exit(app.exec())
