@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 import threading
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
 from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout, QDialog
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidget, QAbstractItemView, QListView
 from PyQt6 import QtCore 
@@ -41,8 +41,38 @@ class MainApp(QMainWindow):
         with open('config.json', 'r') as f:
             self.config = json.load(f)
         self.init_UI()
+        current_size = self.size()
+        self.resize(current_size.width() + 1, current_size.height())
+        self.resize(current_size.width(), current_size.height())
+        self.showFullScreen()
         self.init_keyboard_shortcuts()
         self.command_history = CommandHistory()
+
+    def resizeEvent(self, event):
+        """Somewhat hacky but functional fix to the plot1.width != plot2.width problem"""
+        # Let the resizing occur
+        QApplication.processEvents()
+
+        # Get the maximum width of the two plot widgets
+        max_width = max(self.plot1.width(), self.plot2.width())
+
+        # Set both plot widgets to have that max width as their minimum width
+        self.plot1.setMinimumWidth(max_width)
+        self.plot2.setMinimumWidth(max_width)
+
+        # Additionally, set their size policy to be Preferred for width, so they try to maintain this width
+        policy1 = self.plot1.sizePolicy()
+        policy1.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
+        policy1.setVerticalPolicy(QSizePolicy.Policy.Expanding)
+        self.plot1.setSizePolicy(policy1)
+
+        policy2 = self.plot2.sizePolicy()
+        policy2.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
+        policy2.setVerticalPolicy(QSizePolicy.Policy.Expanding)
+        self.plot2.setSizePolicy(policy2)
+
+        # Make sure to call the base class' method to ensure the event is handled properly
+        super().resizeEvent(event)
 
     def show_whats_new(self):
         # Load the new features from whats_new.py
