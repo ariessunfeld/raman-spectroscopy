@@ -392,13 +392,13 @@ class MainApp(QMainWindow):
             self.align_button.setText('Align X Axis')
 
     def load_database_file(self):
-        fname = QFileDialog.getOpenFileName(self, 'Open Database', '', "Database Files (*.db);;All Files (*)")
+        fname = QFileDialog.getOpenFileName(self, 'Open Database', '..', "Database Files (*.db);;All Files (*)")
         if fname[0]:
             self.database_path = Path(fname[0])
             self.database_label.setText(f"Database: {self.database_path.name}")
 
     def load_unknown_spectrum(self):
-        fname = QFileDialog.getOpenFileName(self, 'Select Raman Spectrum', '')
+        fname = QFileDialog.getOpenFileName(self, 'Select Raman Spectrum', '..')
         if fname[0]:
             self.unknown_spectrum_path = Path(fname[0])
             command = LoadSpectrumCommand(self, *get_xy_from_file(self.unknown_spectrum_path))
