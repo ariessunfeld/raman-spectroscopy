@@ -94,7 +94,7 @@ To use Raman DP-ID as a data processing tool, no database is required.
 
 ## Mineral Identification
 
-To use Raman DP-ID as a mineral identification tool, a SQLite database of Raman spectra with labeled peak positions is required. Contact ariessunfeld@gmail.com for a download link (automatic download coming soon). Once you have a database,
+To use Raman DP-ID as a mineral identification tool, a SQLite database of Raman spectra with labeled peak positions is required. Contact ariessunfeld@gmail.com for a download link (automatic download coming soon). A beta database (use with caution) is available [here](https://drive.google.com/file/d/1H7-KaMXjIlvawiKTDNX-6_ITBDpRq3jj/view?usp=sharing). Once you have a database,
 
 - Load the database (top left button)
 - Load your file for analysis
