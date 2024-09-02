@@ -5,27 +5,76 @@ import sys
 from pathlib import Path
 import json
 import threading
+from enum import Enum
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
-from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton, QTextEdit, QGridLayout, QDialog
-from PyQt6.QtWidgets import QFileDialog, QMessageBox, QListWidget, QAbstractItemView, QListView
+from PyQt6.QtWidgets import (
+    QApplication, 
+    QMainWindow, 
+    QWidget, 
+    QVBoxLayout, 
+    QHBoxLayout, 
+    QSizePolicy,
+    QLabel, 
+    QLineEdit, 
+    QPushButton, 
+    QTextEdit, 
+    QGridLayout, 
+    QDialog,
+    QFileDialog, 
+    QMessageBox, 
+    QListWidget, 
+    QListView,
+    QComboBox,
+    QProxyStyle,
+    QStyle,
+    QScrollArea
+)
 from PyQt6 import QtCore 
 from PyQt6.QtGui import QColor, QShortcut, QKeySequence
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 import pyqtgraph as pg
 
 import numpy as np
 import sqlite3
 
-from utils import find_spectrum_matches, get_unique_mineral_combinations_optimized
-from utils import get_xy_from_file, deserialize, baseline_als, get_peaks
+from utils import (
+    find_spectrum_matches, 
+    get_unique_mineral_combinations_optimized,
+    get_xy_from_file, 
+    deserialize, 
+    baseline_als, 
+    get_peaks, 
+    get_crop_index_suggestion
+)
 
 from discretize import DraggableGraph, DraggableScatter
 from spectra import Spectrum
 from plots import CroppablePlotWidget
-from commands import CommandHistory, LoadSpectrumCommand, PointDragCommand
-from commands import CommandSpectrum, EstimateBaselineCommand, CorrectBaselineCommand
-from commands import CropCommand
+from commands import (
+    CommandHistory, 
+    LoadSpectrumCommand, 
+    PointDragCommand,
+    CommandSpectrum, 
+    EstimateBaselineCommand, 
+    CorrectBaselineCommand,
+    CropCommand,
+    AddPeakPointCommand,
+    RemovePeakPointCommand
+)
+
+class MouseMode(Enum):
+    NORMAL = 1
+    ADD_POINT = 2
+    REM_POINT = 3
+
+
+class CenteredComboBoxStyle(QProxyStyle):
+    def drawControl(self, element, option, painter, widget):
+        if element == QStyle.ControlElement.CE_ComboBoxLabel:
+            # Center the text in the display area
+            option.displayAlignment = Qt.AlignmentFlag.AlignCenter
+        super().drawControl(element, option, painter, widget)
+
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -38,14 +87,21 @@ class MainApp(QMainWindow):
         self.spectrum = None
         self.cropping = False
         self.crop_region = None
+        self.mouse_mode = MouseMode.NORMAL
+        # TODO gracefully handle missing config file
         with open('config.json', 'r') as f:
             self.config = json.load(f)
         self.init_UI()
+        self.setup_connections()
         current_size = self.size()
         self.resize(current_size.width() + 1, current_size.height())
         self.resize(current_size.width(), current_size.height())
         self.init_keyboard_shortcuts()
         self.command_history = CommandHistory()
+
+    def setup_connections(self):
+        self.plot1.point_added.connect(self.on_point_added)
+        self.plot1.point_removed.connect(self.on_point_removed)
 
     def resizeEvent(self, event):
         """Somewhat hacky but functional fix to the plot1.width != plot2.width problem"""
@@ -116,11 +172,9 @@ class MainApp(QMainWindow):
         save_shortcut.activated.connect(self.save_edited_spectrum)
         
     def undo(self):
-        print('Undo activated')
         self.command_history.undo()
     
     def redo(self):
-        print('Redo activated')
         self.command_history.redo()
 
     def init_UI(self):
@@ -135,9 +189,15 @@ class MainApp(QMainWindow):
           |--plot2_layout
         """
 
-        main_layout = QVBoxLayout()
+        # Set up container for overall layout
+        self.main_widget = QWidget(self)
+        main_layout = QVBoxLayout(self.main_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+
+        # Create a QScrollArea
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
 
         # DATABASE & SEARCH AREA
         search_layout = QHBoxLayout()
@@ -161,6 +221,7 @@ class MainApp(QMainWindow):
         peaks_widget.setLayout(peaks_layout)
         self.label_peaks = QLabel("Peaks (comma-separated):", self)
         self.textbox_peaks = QLineEdit(self)
+        self.textbox_peaks.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         peaks_layout.addWidget(self.label_peaks)
         peaks_layout.addWidget(self.textbox_peaks)
         search_layout.addWidget(peaks_widget)
@@ -171,6 +232,7 @@ class MainApp(QMainWindow):
         tolerance_widget.setLayout(tolerance_layout)
         self.label_tolerance = QLabel("Tolerance:", self)
         self.textbox_tolerance = QLineEdit(self)
+        self.textbox_tolerance.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         tolerance_layout.addWidget(self.label_tolerance)
         tolerance_layout.addWidget(self.textbox_tolerance)
         search_layout.addWidget(tolerance_widget)
@@ -189,6 +251,9 @@ class MainApp(QMainWindow):
         self.result_single = QTextEdit(self)
         self.result_double = QTextEdit(self)
         self.result_triple = QTextEdit(self)
+        self.result_single.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.result_double.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.result_triple.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         results_layout.addWidget(self.result_single)
         results_layout.addWidget(self.result_double)
         results_layout.addWidget(self.result_triple)
@@ -210,8 +275,11 @@ class MainApp(QMainWindow):
         # PlotWidget: Plot 1
         #self.plot1 = pg.PlotWidget(self)
         self.plot1 = CroppablePlotWidget(self)
-        self.plot1.setLabel('left', 'Intensity')
+        #self.plot1.setLabel('left', 'Intensity')
+        self.plot1.setLabel('left', 'Intensity', units='w<sub>n</sub>')#, unitPrefix='k')
         self.plot1.setLabel('bottom', 'Raman Shift', units='cm<sup>-1</sup>')
+        self.plot1.getPlotItem().getAxis('bottom').autoSIPrefix = False
+        self.plot1.getPlotItem().getAxis('left').autoSIPrefix = True
         plot1_layout.addWidget(self.plot1, 0, 0, 1, 2)
 
         # Button: load spectrum
@@ -229,8 +297,13 @@ class MainApp(QMainWindow):
         self.button_discretize.clicked.connect(self.discretize_baseline)
         plot1_buttons_layout.addWidget(self.button_discretize)
 
+        # Button: suggest crop
+        self.suggest_crop_button = QPushButton("Suggest Crop", self)
+        self.suggest_crop_button.clicked.connect(self.suggest_crop)
+        plot1_buttons_layout.addWidget(self.suggest_crop_button)
+
         # Button: crop
-        self.crop_button = QPushButton("Crop", self)
+        self.crop_button = QPushButton("Enter Crop Mode", self)
         self.crop_button.clicked.connect(self.toggle_crop_mode)
         plot1_buttons_layout.addWidget(self.crop_button)
 
@@ -238,6 +311,12 @@ class MainApp(QMainWindow):
         self.button_save_spectrum = QPushButton('Save Spectrum', self)
         self.button_save_spectrum.clicked.connect(self.save_edited_spectrum)
         plot1_buttons_layout.addWidget(self.button_save_spectrum)
+
+        # Dropdown: change mousemode
+        self.dropdown_change_mousemode = QComboBox(self)
+        self.dropdown_change_mousemode.addItems(['Mouse Mode: Normal', 'Mouse Mode: Add Peak', 'Mouse Mode: Remove Peak'])
+        self.dropdown_change_mousemode.currentIndexChanged.connect(self.change_mouse_mode)
+        plot1_buttons_layout.addWidget(self.dropdown_change_mousemode)
 
         # LineEdits: scipy.signal.find_peaks() parameters
         plot1_peak_params_layout = QGridLayout()
@@ -247,21 +326,25 @@ class MainApp(QMainWindow):
 
         # LineEdit: width
         self.textbox_width = QLineEdit(self)
+        self.textbox_width.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.textbox_width.setPlaceholderText('`width`')
         plot1_peak_params_layout.addWidget(self.textbox_width, 0, 0)
 
         # LineEdit: rel_height
         self.textbox_rel_height = QLineEdit(self)
+        self.textbox_rel_height.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.textbox_rel_height.setPlaceholderText('`rel_height`')
         plot1_peak_params_layout.addWidget(self.textbox_rel_height, 0, 1)
 
         # LineEdit: height
         self.textbox_height = QLineEdit(self)
+        self.textbox_height.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.textbox_height.setPlaceholderText('`height`')
         plot1_peak_params_layout.addWidget(self.textbox_height, 1, 0)
 
         # LineEdit: prominence
         self.textbox_prominence = QLineEdit(self)
+        self.textbox_prominence.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.textbox_prominence.setPlaceholderText('`prominence`')
         plot1_peak_params_layout.addWidget(self.textbox_prominence, 1, 1)
 
@@ -300,18 +383,22 @@ class MainApp(QMainWindow):
 
         # PlotWidget: Plot 2
         self.plot2 = pg.PlotWidget(self)
-        self.plot2.setLabel('left', 'Intensity')
+        self.plot2.setLabel('left', 'Intensity', units='w<sub>n</sub>', unitPrefix='k')
         self.plot2.setLabel('bottom', 'Raman Shift', units='cm<sup>-1</sup>')
+        self.plot2.getPlotItem().getAxis('bottom').autoSIPrefix = False
+        self.plot2.getPlotItem().getAxis('left').autoSIPrefix = True
         plot2_layout.addWidget(self.plot2, 0, 0, 1, 2)
         
         # LineEdit: mineral name
         # TODO add auto-fill from database here
         self.mineral_input = QLineEdit(self)
+        self.mineral_input.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.mineral_input.setPlaceholderText("Enter Mineral Name")
         plot2_buttons_layout.addWidget(self.mineral_input)
 
         # LineEdit: wavelength
         self.wavelength_input = QLineEdit(self)
+        self.wavelength_input.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.wavelength_input.setPlaceholderText("Enter Wavelength")
         plot2_buttons_layout.addWidget(self.wavelength_input)
 
@@ -334,19 +421,43 @@ class MainApp(QMainWindow):
         self.results_list = QListWidget(self)
         self.results_list.setSelectionMode(QListView.SelectionMode.ExtendedSelection)
         plot2_buttons_layout.addWidget(self.results_list)
+
+        scroll_area.setWidget(self.main_widget)
+
+        # Create a new central widget to hold the scroll area
+        central_widget = QWidget(self)
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.addWidget(scroll_area)
+
+        # Set the central widget to the scroll area container
+        self.setCentralWidget(central_widget)
         
         # Setting central widget and layout
         self.setWindowTitle(self.title)
-        self.main_widget = QWidget(self)
-        self.setCentralWidget(self.main_widget)
-        self.main_widget.setLayout(main_layout)
-        self.show()
+        #self.main_widget = QWidget(self)
+        #self.setCentralWidget(self.main_widget)
+        #self.main_widget.setLayout(main_layout)
+        #self.show()
+
+    def change_mouse_mode(self):
+        current = self.dropdown_change_mousemode.currentText()
+        if 'Normal' in current:
+            self.mouse_mode = MouseMode.NORMAL
+            self.plot1.mode = 'normal'
+        elif 'Add' in current:
+            self.mouse_mode = MouseMode.ADD_POINT
+            self.plot1.mode = 'add'
+        elif 'Remove' in current:
+            self.mouse_mode = MouseMode.REM_POINT
+            self.plot1.mode = 'delete'
+        else:
+            raise ValueError('Invalid mouse mode selected (somehow!)')
 
     def toggle_crop_mode(self):
         if self.cropping:
             self.crop_region = self.plot1.get_crop_region()
             self.apply_crop()
-            self.crop_button.setText("Crop")
+            self.crop_button.setText("Enter Crop Mode")
             self.cropping = False
             self.plot1.cropping = self.cropping
             if self.crop_region:
@@ -411,14 +522,13 @@ class MainApp(QMainWindow):
         self.draggableScatter.dragFinished.connect(self.handle_drag_finished)
         self.draggableGraph = DraggableGraph(scatter_data={'x': x_vals, 'y': y_vals})
         
-        self.plot1.addItem(self.draggableScatter)
         self.plot1.addItem(self.draggableGraph)
+        self.plot1.addItem(self.draggableScatter)
 
         # Replace the smooth baseline with the discretized one
         self.plot1.removeItem(self.baseline_plot)
 
     def handle_drag_finished(self, index, startX, startY, endX, endY):
-        print('handle_drag_finished was called')
         command = PointDragCommand(self, index, startX, startY, endX, endY)
         self.command_history.execute(command)
 
@@ -426,10 +536,18 @@ class MainApp(QMainWindow):
         name = self.align_button.text()
         if name == 'Align X Axis':
             if self.spectrum.x is not None:
+                # left_margin = 80  # Adjust this value based on your needs
+                # self.plot1.getPlotItem().setContentsMargins(left_margin, 0, 0, 0)
+                # self.plot2.getPlotItem().setContentsMargins(left_margin, 0, 0, 0)
+                # top_x_range = self.plot1.getViewBox().viewRange()[0]
+                # self.plot2.setXRange(top_x_range[0], top_x_range[1])
+                #self.plot2.getViewBox().setGeometry(self.plot1.getViewBox().sceneBoundingRect())
                 lower, upper = min(self.spectrum.x), max(self.spectrum.x)
                 self.plot2.setXRange(lower, upper)
+                self.plot1.setXRange(lower, upper)
                 self.align_button.setText('Reset X Axis')
         else: # Reset case
+            self.plot1.autoRange()
             self.plot2.autoRange()
             self.align_button.setText('Align X Axis')
 
@@ -497,6 +615,7 @@ class MainApp(QMainWindow):
             data_x, data_y = self.data_to_plot[file]
             x = deserialize(data_x)
             y = deserialize(data_y)
+            y = y / max(y)
             self.plot2.plot(x, y)
         
         self.plot2.autoRange()
@@ -529,7 +648,7 @@ class MainApp(QMainWindow):
         height = self.textbox_height.text()
         prominence = self.textbox_prominence.text()
 
-        width = eval(width) if width else None
+        width = float(width) if width else None
         rel_height = float(rel_height) if rel_height else None
         height = float(height) if height else None
         prominence = float(prominence) if prominence else None
@@ -542,11 +661,18 @@ class MainApp(QMainWindow):
             height=height, 
             prominence=prominence)
         
-        if hasattr(self, 'peak_plot') and self.peak_plot:
-            self.plot1.removeItem(self.peak_plot)
-            self.peak_plot = None
-        self.peak_plot = self.plot1.plot(self.peaks_x, self.peaks_y, pen=None, symbol='o', symbolSize=7, symbolBrush=(255, 0, 0))
+        # if hasattr(self, 'peak_plot') and self.peak_plot:
+        #     self.plot1.removeItem(self.peak_plot)
+        #     self.peak_plot = None
+        # # TODO change this to add_scatter, handle internally by plot class
+        # self.peak_plot = self.plot1.plot(self.peaks_x, self.peaks_y, pen=None, symbol='o', symbolSize=7, symbolBrush=(255, 0, 0))
         
+        self.refresh_peaks_view()
+
+    def refresh_peaks_view(self):
+
+        self.plot1.set_scatter(self.peaks_x, self.peaks_y)
+
         if len(self.peaks_x) < 15:
             self.plot1_log.addItem(f'Peaks: {", ".join([str(x) for x in sorted(self.peaks_x)])}')
             self.textbox_peaks.setText(','.join([str(round(x,1)) for x in sorted(self.peaks_x)]))
@@ -586,6 +712,19 @@ class MainApp(QMainWindow):
             self.result_double.append(f'{line[0]},   {line[1]}')
         for line in unique_triples:
             self.result_triple.append(f'{line[0]},   {line[1]},   {line[2]}')
+
+    def on_point_added(self, x: float, y: float):
+        print('main gui on_point_added called')
+        command = AddPeakPointCommand(self, x, y)
+        self.command_history.execute(command)
+
+    def on_point_removed(self, idx: int):
+        command = RemovePeakPointCommand(self, idx)
+        self.command_history.execute(command)
+
+    def suggest_crop(self):
+        idx = get_crop_index_suggestion(self.spectrum.y)
+        self.plot1.set_crop_region(self.spectrum.x[0], self.spectrum.x[idx])
 
 
 if __name__ == '__main__':

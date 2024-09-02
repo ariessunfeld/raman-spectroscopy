@@ -37,11 +37,9 @@ class DraggableScatter(pg.ScatterPlotItem):
         ev.accept()
 
     def mouseReleaseEvent(self, ev):
-        print('mouseReleaseEvent occurred')
         if self.draggedPointIndex is not None:
             endPos = (self.data['x'][self.draggedPointIndex], self.data['y'][self.draggedPointIndex])
             self.dragFinished.emit(self.draggedPointIndex, *self.startPos, *endPos)
-            print('Emitted drafFinished signal')
             self.draggedPointIndex = None
         super().mouseReleaseEvent(ev)
 

@@ -10,6 +10,8 @@ import numpy as np
 from scipy.sparse import csc_matrix, eye, diags
 from scipy.sparse.linalg import spsolve
 from scipy.signal import find_peaks
+from scipy.ndimage import gaussian_filter1d
+from pyspectra.readers.read_spc import read_spc
 
 def fetch_filename_and_peaks_filtered(database_path, peaks_set, tol):
     """Like filter_spectra_byinclusion but returns peaks as well"""
@@ -135,23 +137,36 @@ def get_data(file, axis='x'):
 
 
 def get_xy_from_file(file):
-    if file.name.endswith('.txt'):
+    if file.name.lower().endswith('.txt'):
         try:
             x = get_data(file, axis='x')
             y = get_data(file, axis='y')
         except:
             raise ValueError(f'Could not extract x and y from {file}. Ensure format matches RRUFF .txt file format.')
-        return np.array(x), np.array(y)
-    elif file.name.endswith('.csv'):
+        return np.array(x), np.array(y) / max(y)
+    elif file.name.lower().endswith('.csv'):
         # TODO add error handling
         df = pd.read_csv(file)
         if 'x' in df.columns and 'y' in df.columns: # TODO Make this more flexible
-            return np.array(df['x']), np.array(df['y'])
-        
+            return np.array(df['x']), np.array(df['y']) / max(df['y'])
+        else:
+            raise ValueError('Cannot find columns x,y')
+    elif file.name.lower().endswith('.spc'):
+        spc = read_spc(file)
+        df = spc.to_frame()
+        df = df.reset_index()
+        df.columns = ['x', 'y']
+        retx = df['x'].to_list() 
+        rety = df['y'].to_list()
+        if retx[-1] < retx[0]:
+            retx = retx[::-1]
+            rety = rety[::-1]
+        return np.array(retx), np.array(rety) / max(rety)
+    
 def deserialize(vec):
     return np.array(eval(vec))
 
-def baseline_als(y, lam=1e5, p=0.05, niter=1000):
+def baseline_als(y, lam=1e4, p=0.005, niter=1000):
     L = len(y)
     valid_indices = ~np.isnan(y)
     y_valid = y[valid_indices]
@@ -176,3 +191,15 @@ def baseline_als(y, lam=1e5, p=0.05, niter=1000):
 def get_peaks(x, y, width, rel_height, height, prominence):
     peaks, _ = find_peaks(y, width=width, rel_height=rel_height, height=height, prominence=prominence)
     return x[peaks], y[peaks]
+
+def get_crop_index_suggestion(y: np.array):
+    """Returns the index of the end of the suggested crop position
+    
+    Estimates a smooth second derivative of the spectrum and returns
+    the index corresponding to the minimum value of the 2nd dertivative
+    from within the first 50 points
+    """
+    dy = np.diff(y)
+    smoothed_dy = gaussian_filter1d(dy, sigma=2)
+    d2y = np.diff(smoothed_dy)
+    return np.argmin(d2y[:55]) + 2  # two indices cut off by np.diff

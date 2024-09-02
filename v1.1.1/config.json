@@ -2,5 +2,5 @@
     "discrete baseline step size": 30,
     "discrete baseline point size": 4,
     "discrete baseline point color": "(255, 0, 0)",
-    "show_whats_new": true
+    "show_whats_new": false
 }

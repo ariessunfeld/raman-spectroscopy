@@ -18,7 +18,6 @@ class Command:
         raise NotImplementedError
 
 
-
 class CommandSpectrum:
     """Represents a Spectrum for Command classes"""
     def __init__(self, x, y):
@@ -31,7 +30,6 @@ class CommandSpectrum:
 
     def __iter__(self):
         return [self.x, self.y].__iter__()
-
 
 
 class CommandHistory:
@@ -108,7 +106,6 @@ class LoadSpectrumCommand(Command):
             self.app.plot1.clear()
 
 
-
 class PointDragCommand(Command):
     """Command for moving a point on the baseline"""
     def __init__(self, app, index, startX, startY, endX, endY):
@@ -128,7 +125,6 @@ class PointDragCommand(Command):
         self.app.draggableScatter.data['x'][self.index] = self.startX
         self.app.draggableScatter.data['y'][self.index] = self.startY
         self.app.update_discretized_baseline()
-    
 
 
 class EstimateBaselineCommand(Command):
@@ -169,7 +165,6 @@ class EstimateBaselineCommand(Command):
         if self.app.baseline_data is not None:
             self.app.baseline_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.baseline_data, pen='r')
         self.app.plot1_log.addItem("Baseline estimate undone")
-
 
 
 class CorrectBaselineCommand(Command):
@@ -219,7 +214,6 @@ class CorrectBaselineCommand(Command):
         self.app.plot1_log.addItem("Baseline restored")
 
 
-
 class CropCommand(Command):
     def __init__(self, app, crop_start_x, crop_end_x):
         self.app = app
@@ -251,30 +245,62 @@ class CropCommand(Command):
         self.app.plot1.clear()
         if self.app.spectrum is not None:
             self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
-        
-
 
 
 class AddPeakPointCommand(Command):
     """TODO Implement peak point adding"""
-    def __init__(self, app):
+    def __init__(self, app, x: float, y: float):
         self.app = app
+        self.x = x
+        self.y = y
 
     def execute(self):
-        pass
+        self.old_peaks_x = self.app.peaks_x.copy()
+        self.old_peaks_y = self.app.peaks_y.copy()
+        self.app.peaks_x = np.append(self.app.peaks_x, self.x)
+        self.app.peaks_y = np.append(self.app.peaks_y, self.y)
+        self.app.refresh_peaks_view()
 
     def undo(self):
-        pass
-
+        self.app.peaks_x = self.old_peaks_x.copy()
+        self.app.peaks_y = self.old_peaks_y.copy()
+        self.app.refresh_peaks_view()
 
 
 class RemovePeakPointCommand(Command):
     """TODO Implement peak point removal"""
-    def __init__(self, app):
+    def __init__(self, app, idx: int):
         self.app = app
+        self.idx = idx
 
     def execute(self):
-        pass
+        self.old_peaks_x = self.app.peaks_x.copy()
+        self.old_peaks_y = self.app.peaks_y.copy()
+        self.app.peaks_x = np.delete(self.app.peaks_x, self.idx)
+        self.app.peaks_y = np.delete(self.app.peaks_y, self.idx)
+        self.app.refresh_peaks_view()
 
     def undo(self):
+        self.app.peaks_x = self.old_peaks_x.copy()
+        self.app.peaks_y = self.old_peaks_y.copy()
+        self.app.refresh_peaks_view()
+
+
+class FitPeaksCommand(Command):
+    def __init__(self, app, peaks: list[float]):
+        self.app = app
+        self.peaks = peaks
+
+    def execute(self):
+        # Use the fitting logic to obtain the fit
+        # Store the fit
+        # Write the fit params to the Fit Params part of the model
+        # First save the old fit params
+        # Add the fit to the plot
+        pass
+    
+
+    def undo(self):
+        # Remove the fit from the plot
+        # Revert fit params to old fit params
         pass
