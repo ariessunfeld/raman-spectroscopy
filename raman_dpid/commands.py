@@ -8,7 +8,11 @@ GUI's `command_history` list. This structure enables Undo/Redo functionality in 
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
-from raman_dpid.utils import get_smoothed_spectrum, fit_gauss
+from raman_dpid.utils import (
+    get_smoothed_spectrum, 
+    fit_gauss,
+    gaussian
+)
 
 
 class Command:
@@ -333,6 +337,11 @@ class FitPeaksCommand(Command):
     def execute(self):
         # Use the fitting logic to obtain the fit
         result, fit_stats = fit_gauss(self.app.spectrum.x, self.app.spectrum.y, self.peaks)
+
+        print('\n'*3)
+        print('Printing fit stats...')
+        print(fit_stats)
+        print('\n'*3)
         
         self.new_fit = result.best_fit.copy()
         self.new_fit_stats = fit_stats
@@ -390,3 +399,72 @@ class FitPeaksCommand(Command):
             self.app.plot1.removeItem(tr)
         #if self.old_fit_trace is not None:
         #    self.app.plot1.addItem(self.old_fit_trace)
+
+
+class FitPeaksCommand2(Command):
+    def __init__(self, app, peaks: list[float]):
+        self.app = app
+        self.peaks = peaks
+        self.old_fit_stats = self.app.fit_stats_2
+
+    def execute(self):
+
+        result, fit_stats = fit_gauss(self.app.spectrum.x, self.app.spectrum.y, self.peaks)
+        self.new_fit_stats = fit_stats
+        self.app.fit_stats_2 = fit_stats
+        new_x = np.linspace(min(self.app.spectrum.x), max(self.app.spectrum.x), 10_000)
+        
+        # Cleanup old curves
+        for curve in self.app.gaussians:
+            self.app.plot1.removeItem(curve)
+
+        # Reset the list
+        self.app.gaussians = []
+
+        # Plot the new curves
+        y_sum = np.zeros(new_x.shape)
+        for peak, stats in fit_stats.items():
+            y = gaussian(new_x, stats['Height'], stats['Center'], stats['Sigma'])
+            y_sum += y
+            self.app.gaussians.append(
+                self.app.plot1.plot(new_x, y,
+                    pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
+                ))
+            
+        # Cleanup old sum
+        if self.app.gaussian_sum: 
+            self.app.plot1.removeItem(self.app.gaussian_sum)
+
+        # Plot the sum
+        self.app.gaussian_sum = self.app.plot1.plot(new_x, y_sum, pen=pg.mkPen('m', width=2))
+
+        # Remove existing control lines
+        self.app.plot1.removeItem(self.app.peak_line)
+        self.app.plot1.removeItem(self.app.center_line)
+        self.app.plot1.removeItem(self.app.sigma_line)
+
+        # Add the new control lines
+        self.app.peak_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Height'], angle=0, movable=True, pen=pg.mkPen('r', width=2))
+        self.app.center_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Center'], angle=90, movable=True, pen=pg.mkPen('b', width=2))
+        self.app.sigma_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Center'] + fit_stats['Peak 1']['Sigma'], angle=90, movable=True, pen=pg.mkPen('g', width=2))
+        # self.app.plot1.addItem(self.app.peak_line)
+        # self.app.plot1.addItem(self.app.center_line)
+        # self.app.plot1.addItem(self.app.sigma_line)
+
+        # Set the update flag in the app
+        self.app.updating_lines = False
+
+        # Connect signals
+        self.app.peak_line.sigPositionChanged.connect(self.app.update_gaussians)
+        self.app.center_line.sigPositionChanged.connect(self.app.move_center)
+        self.app.sigma_line.sigPositionChanged.connect(self.app.move_sigma)
+
+        # Configure the dropdown
+        self.app.dropdown_edit_peak.clear()
+        self.app.dropdown_edit_peak.addItems(['Edit Peak: None Selected'])
+        self.app.dropdown_edit_peak.addItems([f'Edit Peak: Peak {x+1}' for x in range(len(fit_stats))])
+        self.app.dropdown_edit_peak.setEnabled(True)
+
+    def undo(self):
+        # revert to the old fit stats
+        pass

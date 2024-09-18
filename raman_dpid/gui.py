@@ -44,7 +44,8 @@ from raman_dpid.utils import (
     deserialize, 
     baseline_als, 
     get_peaks, 
-    get_crop_index_suggestion
+    get_crop_index_suggestion,
+    gaussian
 )
 
 from raman_dpid.discretize import DraggableGraph, DraggableScatter
@@ -61,7 +62,8 @@ from raman_dpid.commands import (
     AddPeakPointCommand,
     RemovePeakPointCommand,
     SmoothCommand,
-    FitPeaksCommand
+    FitPeaksCommand,
+    FitPeaksCommand2
 )
 
 class MouseMode(Enum):
@@ -92,8 +94,18 @@ class MainApp(QMainWindow):
         self.mouse_mode = MouseMode.NORMAL
         self.fit = None
         self.fit_stats = None
+        self.fit_stats_2 = None
         self.fit_trace = None
         self.fit_component_traces = []
+        self.gaussians = []
+        self.gaussian_sum = None
+        
+        self.peak_line = None
+        self.center_line = None
+        self.sigma_line = None
+
+        self.updating_lines = False
+
         # TODO gracefully handle missing config file
         with open(Path(__file__).parent / 'config.json', 'r') as f:
             self.config = json.load(f)
@@ -318,7 +330,7 @@ class MainApp(QMainWindow):
         self.button_save_spectrum.clicked.connect(self.save_edited_spectrum)
         plot1_buttons_layout.addWidget(self.button_save_spectrum)
 
-        # BUtton: smooth spectrum
+        # Button: smooth spectrum
         self.button_smooth_spectrum = QPushButton('Smooth Spectrum', self)
         self.button_smooth_spectrum.clicked.connect(self.smooth_spectrum)
         plot1_buttons_layout.addWidget(self.button_smooth_spectrum)
@@ -333,6 +345,12 @@ class MainApp(QMainWindow):
         self.dropdown_change_mousemode.addItems(['Mouse Mode: Normal', 'Mouse Mode: Add Peak', 'Mouse Mode: Remove Peak'])
         self.dropdown_change_mousemode.currentIndexChanged.connect(self.change_mouse_mode)
         plot1_buttons_layout.addWidget(self.dropdown_change_mousemode)
+
+        self.dropdown_edit_peak = QComboBox(self)
+        self.dropdown_edit_peak.addItems(['Edit Peak: None Selected'])
+        self.dropdown_edit_peak.currentIndexChanged.connect(self.update_control_lines)
+        self.dropdown_edit_peak.setEnabled(False)
+        plot1_buttons_layout.addWidget(self.dropdown_edit_peak)
 
         # LineEdits: scipy.signal.find_peaks() parameters
         plot1_peak_params_layout = QGridLayout()
@@ -747,8 +765,94 @@ class MainApp(QMainWindow):
         self.plot1.set_crop_region(self.spectrum.x[0], self.spectrum.x[idx])
 
     def fit_peaks(self):
-        command = FitPeaksCommand(self, self.peaks_x)
+        #command = FitPeaksCommand(self, self.peaks_x)
+        command = FitPeaksCommand2(self, self.peaks_x)
         self.command_history.execute(command)
+
+    # Function to update Gaussian curves
+    def update_gaussians(self):
+        if self.updating_lines:
+            return  # Avoid updating when changing lines programmatically
+    
+        # Find which peak to edit from the dropdown
+        selected_idx = self.dropdown_edit_peak.currentIndex()
+        key = f'Peak {selected_idx}'  # 1-indexed in keys, but there is a placeholder in dropdown
+        
+        # Get the new peak params from the control lines
+        height_new = self.peak_line.value()
+        center_new = self.center_line.value()
+        sigma_new = abs(self.sigma_line.value() - center_new)
+        
+        # Update the dictionary
+        self.fit_stats_2[key]['Height'] = height_new
+        self.fit_stats_2[key]['Center'] = center_new
+        self.fit_stats_2[key]['Sigma'] = sigma_new
+    
+        # Update the selected Gaussian curve
+        new_x = np.linspace(min(self.spectrum.x), max(self.spectrum.x), 10_000)
+        y_sum = np.zeros(new_x.shape)
+        for i, param in enumerate(self.fit_stats_2.values()):
+            y_new = gaussian(new_x, param['Height'], param['Center'], param['Sigma'])
+            y_sum += y_new
+            self.gaussians[i].setData(new_x, y_new)
+    
+        # Update the sum curve
+        self.gaussian_sum.setData(new_x, y_sum)
+
+    # Function to update control lines when a new peak is selected
+    def update_control_lines(self):
+        self.updating_lines = True  # Prevent update_gaussian from being triggered
+    
+        selected_idx = self.dropdown_edit_peak.currentIndex()
+        if selected_idx >= 1:
+            key = f'Peak {selected_idx}' 
+
+            self.peak_line.setValue(self.fit_stats_2[key]['Height'])
+            self.center_line.setValue(self.fit_stats_2[key]['Center'])
+            self.sigma_line.setValue(self.fit_stats_2[key]['Center'] + self.fit_stats_2[key]['Sigma'])  # Offset by mu
+
+            self.plot1.addItem(self.peak_line)
+            self.plot1.addItem(self.center_line)
+            self.plot1.addItem(self.sigma_line)
+        
+        else:
+            self.plot1.removeItem(self.peak_line)
+            self.plot1.removeItem(self.center_line)
+            self.plot1.removeItem(self.sigma_line)
+    
+        self.updating_lines = False  # Re-enable updates
+
+    # Function to move both center and width lines when the center line is moved
+    def move_center(self):
+        if self.updating_lines:
+            return  # Avoid recursive updating
+    
+        self.updating_lines = True  # Block signals during update
+        selected_idx = self.dropdown_edit_peak.currentIndex()
+        key = f'Peak {selected_idx}'
+    
+        mu_new = self.center_line.value()  # Get new center value
+        self.fit_stats_2[key]['Center'] = mu_new  # Update center
+    
+        # Move the width line relative to the new center (mu + sigma)
+        self.sigma_line.setValue(mu_new + self.fit_stats_2[key]['Sigma'])
+    
+        self.updating_lines = False  # Re-enable updates
+        self.update_gaussians()  # Update the Gaussian
+
+    # Function to update only the width (sigma) when the width line is moved
+    def move_sigma(self):
+        if self.updating_lines:
+            return  # Avoid recursive updating
+    
+        selected_idx = self.dropdown_edit_peak.currentIndex()
+        key = f'Peak {selected_idx}'
+    
+        # Get the new sigma value as the distance from the center (mu)
+        sigma_new = abs(self.sigma_line.value() - self.fit_stats_2[key]['Center'])
+        self.fit_stats_2[key]['Sigma'] = sigma_new
+    
+        self.update_gaussians()  # Update the Gaussian
 
 
 

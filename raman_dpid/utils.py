@@ -2,6 +2,7 @@
 
 from itertools import combinations
 import sqlite3
+from datetime import datetime
 
 from tqdm import tqdm
 import pandas as pd
@@ -16,6 +17,8 @@ from scipy.signal import savgol_filter
 from pyspectra.readers.read_spc import read_spc
 
 from lmfit.models import GaussianModel, LorentzianModel
+
+import pyqtgraph as pg
 
 def fetch_filename_and_peaks_filtered(database_path, peaks_set, tol):
     """Like filter_spectra_byinclusion but returns peaks as well"""
@@ -211,6 +214,9 @@ def get_crop_index_suggestion(y: np.array):
 def get_smoothed_spectrum(y: np.array, window_length: int=13, polyorder: int=3):
     return savgol_filter(y, window_length=window_length, polyorder=polyorder).copy()
 
+def gaussian(x, A, mu, sigma):
+    return A * np.exp(- (x - mu) ** 2 / (2 * sigma ** 2))
+
 def fit_gauss(
         x: np.array, 
         y: np.array, 
@@ -230,14 +236,23 @@ def fit_gauss(
         gauss = GaussianModel(prefix=prefix)
         if model is None:
             model = gauss
-            params = gauss.make_params(center=peak, amplitude=max(y), sigma=1)
+            params = gauss.make_params(
+                center=peak, 
+                amplitude=dict(value=max(y), min=0), 
+                sigma=1
+            )
         else:
             model += gauss
-            params.update(gauss.make_params(center=peak, amplitude=max(y), sigma=1))
+            params.update(
+                gauss.make_params(
+                    center=peak, 
+                    amplitude=dict(value=max(y), min=0), 
+                    sigma=1)
+                )
 
         # Optionally, set parameter bounds (if you have prior knowledge)
-        params[prefix + 'center'].set(value=peak, min=peak+Ltol, max=peak+Rtol)
-        params[prefix + 'sigma'].set(min=min_sigma)
+        #params[prefix + 'center'].set(value=peak, min=peak+Ltol, max=peak+Rtol)
+        #params[prefix + 'sigma'].set(min=min_sigma)
 
     # Fit the model to the datap
     result = model.fit(y, params, x=x, max_nfev=max_nfev)
@@ -255,17 +270,19 @@ def fit_gauss(
 
         prefix = f'p{i}_'
         peak_area = result.params[prefix + 'amplitude'].value
-        fwhm = result.params[prefix + 'sigma'].value * 2.355  # FWHM for Gaussian
+        sigma = result.params[prefix + 'sigma'].value
+        fwhm = result.params[prefix + 'sigma'].value * 2.35482  # FWHM for Gaussian
         peak_center = result.params[prefix + 'center'].value
         peak_height = result.params[prefix + 'height'].value
 
         peak_stats[curr_peak] |= dict(
             Center=peak_center, 
+            Sigma=sigma,
             Area=peak_area, 
             FWHM=fwhm, 
             Height=peak_height
         )
 
-        print(f'Peak {i+1}: Center={peak_center}, Area={peak_area}, FWHM={fwhm}, Height={peak_height}')
+        print(f'Peak {i+1}: Center={peak_center}, Sigma={sigma}, Area={peak_area}, FWHM={fwhm}, Height={peak_height}')
 
     return result, peak_stats
