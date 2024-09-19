@@ -258,7 +258,7 @@ def fit_gauss(
     result = model.fit(y, params, x=x, max_nfev=max_nfev)
 
     # Display the fitting report
-    print(result.fit_report())
+    #print(result.fit_report())
 
     peak_stats = {}
 
@@ -282,7 +282,5 @@ def fit_gauss(
             FWHM=fwhm, 
             Height=peak_height
         )
-
-        print(f'Peak {i+1}: Center={peak_center}, Sigma={sigma}, Area={peak_area}, FWHM={fwhm}, Height={peak_height}')
 
     return result, peak_stats

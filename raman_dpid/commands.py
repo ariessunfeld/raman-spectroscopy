@@ -337,11 +337,6 @@ class FitPeaksCommand(Command):
     def execute(self):
         # Use the fitting logic to obtain the fit
         result, fit_stats = fit_gauss(self.app.spectrum.x, self.app.spectrum.y, self.peaks)
-
-        print('\n'*3)
-        print('Printing fit stats...')
-        print(fit_stats)
-        print('\n'*3)
         
         self.new_fit = result.best_fit.copy()
         self.new_fit_stats = fit_stats

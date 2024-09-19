@@ -32,6 +32,10 @@ from PyQt6.QtWidgets import (
 from PyQt6 import QtCore 
 from PyQt6.QtGui import QColor, QShortcut, QKeySequence
 from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import (
+    Qt,
+    qInstallMessageHandler
+)
 import pyqtgraph as pg
 
 import numpy as np
@@ -66,6 +70,13 @@ from raman_dpid.commands import (
     FitPeaksCommand2
 )
 
+def custom_qt_message_handler(msg_type, context, message):
+    if "skipping QEventPoint" in message:
+        # Ignore this specific warning message
+        return
+    # For other messages, use the default handler (prints to the console)
+    print(message)
+
 class MouseMode(Enum):
     NORMAL = 1
     ADD_POINT = 2
@@ -83,6 +94,7 @@ class CenteredComboBoxStyle(QProxyStyle):
 class MainApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        qInstallMessageHandler(custom_qt_message_handler)
         self.title = 'Raman Spectra Analyzer'
         self.database_path = None
         self.baseline_data = None
@@ -355,7 +367,7 @@ class MainApp(QMainWindow):
 
         # Button: print fits
         self.button_print_fits = QPushButton('Print Fits', self)
-        self.button_print_fits.clicked.connect(lambda: print(self.fit_stats_2))
+        self.button_print_fits.clicked.connect(self.print_fit_stats)
         plot1_buttons_layout.addWidget(self.button_print_fits)
 
         # LineEdits: scipy.signal.find_peaks() parameters
@@ -478,6 +490,16 @@ class MainApp(QMainWindow):
         #self.setCentralWidget(self.main_widget)
         #self.main_widget.setLayout(main_layout)
         #self.show()
+
+
+    def print_fit_stats(self):
+        if self.fit_stats_2 is not None:
+            for peak, stats in self.fit_stats_2.items():
+                print(peak)
+                for key, val in stats.items():
+                    if key in ['Center', 'Sigma', 'Height']:
+                        print(f'\t{key}: {val}')
+
 
     def change_mouse_mode(self):
         current = self.dropdown_change_mousemode.currentText()
@@ -758,7 +780,6 @@ class MainApp(QMainWindow):
             self.result_triple.append(f'{line[0]},   {line[1]},   {line[2]}')
 
     def on_point_added(self, x: float, y: float):
-        print('main gui on_point_added called')
         command = AddPeakPointCommand(self, x, y)
         self.command_history.execute(command)
 

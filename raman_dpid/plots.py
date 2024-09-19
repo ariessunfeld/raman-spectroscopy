@@ -75,7 +75,7 @@ class CroppablePlotWidget(pg.PlotWidget):
                 pos = event.scenePos()
                 mousePoint = self.plotItem.vb.mapSceneToView(pos)
                 x_click, y_click = mousePoint.x(), mousePoint.y()
-                print(f"Scene clicked at: x={x_click}, y={y_click}")
+                #print(f"Scene clicked at: x={x_click}, y={y_click}")
 
                 x, y = self.points['x'], self.points['y']
                 if len(x) and len(y):
@@ -89,7 +89,7 @@ class CroppablePlotWidget(pg.PlotWidget):
                     click_on_point = False
 
                 if self.mode == 'add' and not click_on_point:
-                    print("Adding a new point")
+                    #("Adding a new point")
                     self.points['x'] = np.append(self.points['x'], x_click)
                     self.points['y'] = np.append(self.points['y'], y_click)
                     self.point_added.emit(x_click, y_click)
@@ -99,7 +99,7 @@ class CroppablePlotWidget(pg.PlotWidget):
         if not self.cropping:  # Only handle point clicks if cropping is not active
             pos = points[0].pos()
             x_click, y_click = pos.x(), pos.y()
-            print(f"Point clicked at: x={x_click}, y={y_click}")
+            #print(f"Point clicked at: x={x_click}, y={y_click}")
 
             x, y = self.points['x'], self.points['y']
             distances = np.hypot(x - x_click, y - y_click)
@@ -107,7 +107,7 @@ class CroppablePlotWidget(pg.PlotWidget):
             threshold = 0.1  # Threshold for detecting clicks on points
 
             if self.mode == 'delete' and distances[closest_point_idx] < threshold:
-                print(f"Removing point: {closest_point_idx}")
+                #print(f"Removing point: {closest_point_idx}")
                 self.points['x'] = np.delete(self.points['x'], closest_point_idx)
                 self.points['y'] = np.delete(self.points['y'], closest_point_idx)
                 self.point_removed.emit(closest_point_idx)
