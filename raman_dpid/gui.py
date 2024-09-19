@@ -346,11 +346,17 @@ class MainApp(QMainWindow):
         self.dropdown_change_mousemode.currentIndexChanged.connect(self.change_mouse_mode)
         plot1_buttons_layout.addWidget(self.dropdown_change_mousemode)
 
+        # Dropdown: edit peaks
         self.dropdown_edit_peak = QComboBox(self)
         self.dropdown_edit_peak.addItems(['Edit Peak: None Selected'])
         self.dropdown_edit_peak.currentIndexChanged.connect(self.update_control_lines)
         self.dropdown_edit_peak.setEnabled(False)
         plot1_buttons_layout.addWidget(self.dropdown_edit_peak)
+
+        # Button: print fits
+        self.button_print_fits = QPushButton('Print Fits', self)
+        self.button_print_fits.clicked.connect(lambda: print(self.fit_stats_2))
+        plot1_buttons_layout.addWidget(self.button_print_fits)
 
         # LineEdits: scipy.signal.find_peaks() parameters
         plot1_peak_params_layout = QGridLayout()
