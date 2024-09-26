@@ -153,6 +153,23 @@ class MainApp(QMainWindow):
         self.init_keyboard_shortcuts()
         self.command_history = CommandHistory()
 
+        self.batch_processing_steps = [
+            'Load file',
+            'Enter crop mode',
+            'Apply crop',
+            'Estimate baseline',
+            'Apply baseline correction',
+            'Smooth spectrum',
+            'Find peaks',
+            'Fit peaks',
+            'Save spectrum',
+            'Save fits'
+        ]
+        self.current_batch_file_index = 0
+        self.current_batch_step_index = 0
+        self.batch_files = []
+        self.folder_path = ''
+
     def setup_connections(self):
         self.plot1.point_added.connect(self.on_point_added)
         self.plot1.point_removed.connect(self.on_point_removed)
@@ -397,11 +414,22 @@ class MainApp(QMainWindow):
         self.toggle_config_panel_button.clicked.connect(self.toggle_config_panel)
         plot1_buttons_layout.addWidget(self.toggle_config_panel_button)
 
+        # Button: Toggle Batch Processing Window
+        self.toggle_batch_processing_button = QPushButton('Show Batch Processing Window', self)
+        self.toggle_batch_processing_button.clicked.connect(self.toggle_batch_processing_window)
+        plot1_buttons_layout.addWidget(self.toggle_batch_processing_button)
+
         # Config Panel (initially hidden)
         self.config_panel = QDialog()
         self.config_panel.setVisible(False)
         self.config_panel.finished.connect(self.on_config_dialog_close)
         self.init_config_panel()
+
+        # Batch Processing Window (initially hidden)
+        self.batch_processing_window = QDialog()
+        self.batch_processing_window.setVisible(False)
+        self.batch_processing_window.finished.connect(self.on_batch_processing_window_close)
+        self.init_batch_processing_window()
 
         # LineEdits: scipy.signal.find_peaks() parameters
         plot1_peak_params_layout = QGridLayout()
@@ -519,6 +547,161 @@ class MainApp(QMainWindow):
         
         # Setting central widget and layout
         self.setWindowTitle(self.title)
+
+    def init_batch_processing_window(self):
+        # Create the layout
+        batch_layout = QVBoxLayout()
+
+        # First row: Select Folder button and label
+        folder_layout = QHBoxLayout()
+        self.select_folder_button = QPushButton('Select Folder', self)
+        self.select_folder_button.clicked.connect(self.select_folder)
+        self.folder_label = QLabel('No folder selected', self)
+        folder_layout.addWidget(self.select_folder_button)
+        folder_layout.addWidget(self.folder_label)
+        batch_layout.addLayout(folder_layout)
+
+        # Second row: Current file label and filename
+        current_file_layout = QHBoxLayout()
+        self.current_file_label = QLabel('Current file:', self)
+        self.current_file_name_label = QLabel('No file selected', self)
+        current_file_layout.addWidget(self.current_file_label)
+        current_file_layout.addWidget(self.current_file_name_label)
+        batch_layout.addLayout(current_file_layout)
+
+        # Third row: Next button and next action label
+        next_layout = QHBoxLayout()
+        self.next_button = QPushButton('Next:', self)
+        self.next_button.clicked.connect(self.batch_next_step)
+        self.next_action_label = QLabel('Load file', self)
+        next_layout.addWidget(self.next_button)
+        next_layout.addWidget(self.next_action_label)
+        batch_layout.addLayout(next_layout)
+
+        self.batch_processing_window.setLayout(batch_layout)
+
+    def toggle_batch_processing_window(self):
+        if self.batch_processing_window.isVisible():
+            self.batch_processing_window.setVisible(False)
+            self.toggle_batch_processing_button.setText('Show Batch Processing Window')
+        else:
+            self.batch_processing_window.setVisible(True)
+            self.toggle_batch_processing_button.setText('Hide Batch Processing Window')
+
+    def on_batch_processing_window_close(self):
+        if not self.batch_processing_window.isVisible():
+            self.toggle_batch_processing_button.setText('Show Batch Processing Window')
+
+    def select_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, 'Select Folder', '..')
+        if folder:
+            self.folder_path = folder
+            self.folder_label.setText(folder)
+            # Get the list of files in the folder
+            self.batch_files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+            self.current_batch_file_index = 0
+            self.current_batch_step_index = 0
+            if self.batch_files:
+                first_file = self.batch_files[self.current_batch_file_index]
+                self.next_action_label.setText(f'Load file {os.path.basename(first_file)}')
+            else:
+                self.next_action_label.setText('No files in folder')
+        else:
+            self.folder_label.setText('No folder selected')
+            self.batch_files = []
+            self.next_action_label.setText('')
+
+    def batch_next_step(self):
+        if not self.batch_files:
+            QMessageBox.warning(self, 'No files', 'No files to process. Please select a folder with files.')
+            return
+
+        if self.current_batch_file_index >= len(self.batch_files):
+            QMessageBox.information(self, 'Done', 'All files have been processed.')
+            self.next_action_label.setText('All files processed')
+            return
+
+        current_file = self.batch_files[self.current_batch_file_index]
+        current_step = self.batch_processing_steps[self.current_batch_step_index]
+
+        if current_step == 'Load file':
+            # Use existing file-loading logic
+            self.unknown_spectrum_path = Path(current_file)
+            command = LoadSpectrumCommand(self, *get_xy_from_file(self.unknown_spectrum_path))
+            self.command_history.execute(command)
+            self.current_file_name_label.setText(os.path.basename(current_file))
+            self.plot1_log.addItem(f'Loaded file: {current_file}')
+
+        elif current_step == 'Enter crop mode':
+            if not self.cropping:
+                self.toggle_crop_mode()
+
+        elif current_step == 'Apply crop':
+            if self.cropping:
+                self.toggle_crop_mode()
+
+        elif current_step == 'Estimate baseline':
+            if self.button_baseline.text() == "Estimate Baseline":
+                self.baseline_callback()
+
+        elif current_step == 'Apply baseline correction':
+            if self.button_baseline.text() == "Apply Baseline Correction":
+                self.baseline_callback()
+
+        elif current_step == 'Smooth spectrum':
+            self.smooth_spectrum()
+
+        elif current_step == 'Find peaks':
+            self.find_peaks()
+
+        elif current_step == 'Fit peaks':
+            self.fit_peaks()
+
+        elif current_step == 'Save spectrum':
+            default_name = f"{self.unknown_spectrum_path.stem}_processed.txt"
+            save_path = os.path.join(self.folder_path, default_name)
+            with open(save_path, 'w') as f:
+                for x, y in zip(self.spectrum.x, self.spectrum.y):
+                    f.write(f"{x} {y}\n")
+            self.plot1_log.addItem(f'Saved edited spectrum to: {save_path}')
+
+        elif current_step == 'Save fits':
+            fits_save_path = os.path.join(self.folder_path, f"{self.unknown_spectrum_path.stem}_fits.txt")
+            with open(fits_save_path, 'w') as f:
+                for peak, stats in self.fit_stats_2.items():
+                    f.write(f"{peak}\n")
+                    for key, val in stats.items():
+                        if key in ['Center', 'Sigma', 'Height']:
+                            f.write(f"{key}: {val}\n")
+            self.plot1_log.addItem(f'Saved fits to: {fits_save_path}')
+
+        # Move to next step
+        self.current_batch_step_index += 1
+
+        if self.current_batch_step_index >= len(self.batch_processing_steps):
+            # Reset step index, move to next file
+            self.current_batch_step_index = 0
+            self.current_batch_file_index += 1
+            if self.current_batch_file_index >= len(self.batch_files):
+                self.next_action_label.setText('All files processed')
+                QMessageBox.information(self, 'Done', 'All files have been processed.')
+                return
+            else:
+                next_file = self.batch_files[self.current_batch_file_index]
+                self.next_action_label.setText(f'Load file {os.path.basename(next_file)}')
+                self.current_file_name_label.setText('No file selected')
+                self.plot1.clear()
+        else:
+            # Update next action label
+            next_step = self.batch_processing_steps[self.current_batch_step_index]
+            if next_step == 'Load file':
+                next_file = self.batch_files[self.current_batch_file_index]
+                self.next_action_label.setText(f'{next_step}: {os.path.basename(next_file)}')
+            else:
+                self.next_action_label.setText(next_step)
+
+
+
 
     def init_config_model(self):
         # Initialize with some default colors
