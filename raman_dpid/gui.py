@@ -27,10 +27,15 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QProxyStyle,
     QStyle,
-    QScrollArea
+    QScrollArea,
+    QGroupBox,
+    QFormLayout,
+    QSpinBox,
+    QCheckBox,
+    QColorDialog
 )
 from PyQt6 import QtCore 
-from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence, QFont, QPen
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtCore import (
     Qt,
@@ -111,12 +116,31 @@ class MainApp(QMainWindow):
         self.fit_component_traces = []
         self.gaussians = []
         self.gaussian_sum = None
+
+        self.peaks_x = np.array([])
+        self.peaks_y = np.array([])
         
         self.peak_line = None
         self.center_line = None
         self.sigma_line = None
 
         self.updating_lines = False
+
+        # Default styles
+        self.gaussian_sum_pen = pg.mkPen('m', width=2)
+        self.gaussian_pen = pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
+        self.spectrum_pen = pg.mkPen('b', width=1)
+        self.background_color = QColor('w')
+        self.show_peak_points = True
+        self.show_peak_labels = False
+        self.peak_label_font_size = 10
+        self.axis_label_font_size = 12
+        self.axis_label_color = QColor('k')
+        self.tick_marks_x = True
+        self.tick_marks_y = True
+        self.tick_marks_inside = True
+        self.tick_interval_x = None
+        self.tick_interval_y = None
 
         # TODO gracefully handle missing config file
         with open(Path(__file__).parent / 'config.json', 'r') as f:
@@ -303,9 +327,7 @@ class MainApp(QMainWindow):
         main_layout.addWidget(plot1_widget)
         
         # PlotWidget: Plot 1
-        #self.plot1 = pg.PlotWidget(self)
         self.plot1 = CroppablePlotWidget(self)
-        #self.plot1.setLabel('left', 'Intensity')
         self.plot1.setLabel('left', 'Intensity', units='w<sub>n</sub>')#, unitPrefix='k')
         self.plot1.setLabel('bottom', 'Raman Shift', units='cm<sup>-1</sup>')
         self.plot1.getPlotItem().getAxis('bottom').autoSIPrefix = False
@@ -370,6 +392,17 @@ class MainApp(QMainWindow):
         self.button_print_fits.clicked.connect(self.print_fit_stats)
         plot1_buttons_layout.addWidget(self.button_print_fits)
 
+        # Button: Toggle Config Panel
+        self.toggle_config_panel_button = QPushButton('Show Config Panel', self)
+        self.toggle_config_panel_button.clicked.connect(self.toggle_config_panel)
+        plot1_buttons_layout.addWidget(self.toggle_config_panel_button)
+
+        # Config Panel (initially hidden)
+        self.config_panel = QDialog()
+        self.config_panel.setVisible(False)
+        self.config_panel.finished.connect(self.on_config_dialog_close)
+        self.init_config_panel()
+
         # LineEdits: scipy.signal.find_peaks() parameters
         plot1_peak_params_layout = QGridLayout()
         plot1_peak_params_widget = QWidget()
@@ -416,7 +449,7 @@ class MainApp(QMainWindow):
         self.button_show_peak_labels.clicked.connect(self.toggle_labels_callback)
         plot1_peaks_buttons_layout.addWidget(self.button_show_peak_labels)
 
-        # LisWidget: Log for Plot 1
+        # ListWidget: Log for Plot 1
         self.plot1_log = QListWidget()
         plot1_buttons_layout.addWidget(self.plot1_log)
 
@@ -486,12 +519,434 @@ class MainApp(QMainWindow):
         
         # Setting central widget and layout
         self.setWindowTitle(self.title)
-        #self.main_widget = QWidget(self)
-        #self.setCentralWidget(self.main_widget)
-        #self.main_widget.setLayout(main_layout)
-        #self.show()
+
+    def init_config_model(self):
+        # Initialize with some default colors
+        self.gaussian_sum_color = QColor('magenta')
+        self.gaussian_color = QColor('green')
+        self.spectrum_color = QColor('blue')
+        self.background_color = QColor('black')
+
+    def init_config_panel(self):
+        """Initialize the configuration panel with all the controls"""
+
+        # Create a widget that will hold all the controls (to be placed inside the QScrollArea)
+        config_content = QWidget()
+        config_layout = QVBoxLayout(config_content)
+
+        # Gaussian Sum Style
+        gaussian_sum_group = QGroupBox('Gaussian Sum Style')
+        gaussian_sum_layout = QFormLayout()
+        gaussian_sum_group.setLayout(gaussian_sum_layout)
+
+        # Line Style
+        self.gaussian_sum_line_style_combo = QComboBox()
+        self.gaussian_sum_line_style_combo.addItems(['Solid', 'Dash', 'Dot', 'DashDot'])
+        self.gaussian_sum_line_style_combo.currentIndexChanged.connect(self.update_gaussian_sum_style)
+        gaussian_sum_layout.addRow('Line Style:', self.gaussian_sum_line_style_combo)
+
+        # Line Thickness
+        self.gaussian_sum_line_thickness_spinbox = QSpinBox()
+        self.gaussian_sum_line_thickness_spinbox.setRange(1, 10)
+        self.gaussian_sum_line_thickness_spinbox.setValue(2)
+        self.gaussian_sum_line_thickness_spinbox.valueChanged.connect(self.update_gaussian_sum_style)
+        gaussian_sum_layout.addRow('Thickness:', self.gaussian_sum_line_thickness_spinbox)
+
+        # Line Color
+        self.gaussian_sum_line_color_button = QPushButton()
+        self.gaussian_sum_line_color_button.setStyleSheet("background-color: magenta")
+        self.gaussian_sum_line_color_button.clicked.connect(self.select_gaussian_sum_color)
+        gaussian_sum_layout.addRow('Color:', self.gaussian_sum_line_color_button)
+
+        config_layout.addWidget(gaussian_sum_group)
+
+        # Individual Gaussians Style
+        gaussian_group = QGroupBox('Individual Gaussians Style')
+        gaussian_layout = QFormLayout()
+        gaussian_group.setLayout(gaussian_layout)
+
+        # Line Style
+        self.gaussian_line_style_combo = QComboBox()
+        self.gaussian_line_style_combo.addItems(['Solid', 'Dash', 'Dot', 'DashDot'])
+        self.gaussian_line_style_combo.currentIndexChanged.connect(self.update_gaussian_style)
+        gaussian_layout.addRow('Line Style:', self.gaussian_line_style_combo)
+
+        # Line Thickness
+        self.gaussian_line_thickness_spinbox = QSpinBox()
+        self.gaussian_line_thickness_spinbox.setRange(1, 10)
+        self.gaussian_line_thickness_spinbox.setValue(2)
+        self.gaussian_line_thickness_spinbox.valueChanged.connect(self.update_gaussian_style)
+        gaussian_layout.addRow('Thickness:', self.gaussian_line_thickness_spinbox)
+
+        # Line Color
+        self.gaussian_line_color_button = QPushButton()
+        self.gaussian_line_color_button.setStyleSheet("background-color: green")
+        self.gaussian_line_color_button.clicked.connect(self.select_gaussian_color)
+        gaussian_layout.addRow('Color:', self.gaussian_line_color_button)
+
+        config_layout.addWidget(gaussian_group)
+
+        # Spectrum Style
+        spectrum_group = QGroupBox('Spectrum Style')
+        spectrum_layout = QFormLayout()
+        spectrum_group.setLayout(spectrum_layout)
+
+        # Line Style
+        self.spectrum_line_style_combo = QComboBox()
+        self.spectrum_line_style_combo.addItems(['Solid', 'Dash', 'Dot', 'DashDot'])
+        self.spectrum_line_style_combo.currentIndexChanged.connect(self.update_spectrum_style)
+        spectrum_layout.addRow('Line Style:', self.spectrum_line_style_combo)
+
+        # Line Thickness
+        self.spectrum_line_thickness_spinbox = QSpinBox()
+        self.spectrum_line_thickness_spinbox.setRange(1, 10)
+        self.spectrum_line_thickness_spinbox.setValue(1)
+        self.spectrum_line_thickness_spinbox.valueChanged.connect(self.update_spectrum_style)
+        spectrum_layout.addRow('Thickness:', self.spectrum_line_thickness_spinbox)
+
+        # Line Color
+        self.spectrum_line_color_button = QPushButton()
+        self.spectrum_line_color_button.setStyleSheet("background-color: blue")
+        self.spectrum_line_color_button.clicked.connect(self.select_spectrum_color)
+        spectrum_layout.addRow('Color:', self.spectrum_line_color_button)
+
+        config_layout.addWidget(spectrum_group)
+
+        # Background Style
+        background_group = QGroupBox('Background Style')
+        background_layout = QFormLayout()
+        background_group.setLayout(background_layout)
+        self.background_color_button = QPushButton()
+        self.background_color_button.setStyleSheet(f"background-color: {self.background_color.name()}")
+        self.background_color_button.clicked.connect(self.select_background_color)
+        background_layout.addRow('Color:', self.background_color_button)
+
+        config_layout.addWidget(background_group)
+
+        # Tick Marks
+        tick_group = QGroupBox('Tick Marks')
+        tick_layout = QFormLayout()
+        tick_group.setLayout(tick_layout)
+
+        # X-axis Tick Marks
+        self.tick_marks_x_checkbox = QCheckBox('Show X-axis Tick Marks')
+        self.tick_marks_x_checkbox.setChecked(True)
+        self.tick_marks_x_checkbox.stateChanged.connect(self.update_tick_marks)
+        tick_layout.addRow(self.tick_marks_x_checkbox)
+
+        # Y-axis Tick Marks
+        self.tick_marks_y_checkbox = QCheckBox('Show Y-axis Tick Marks')
+        self.tick_marks_y_checkbox.setChecked(True)
+        self.tick_marks_y_checkbox.stateChanged.connect(self.update_tick_marks)
+        tick_layout.addRow(self.tick_marks_y_checkbox)
+
+        # Tick Position
+        self.tick_position_combo = QComboBox()
+        self.tick_position_combo.addItems(['Inside', 'Outside'])
+        self.tick_position_combo.currentIndexChanged.connect(self.update_tick_marks)
+        tick_layout.addRow('Tick Position:', self.tick_position_combo)
+
+        # Tick Width
+        self.tick_width_spinbox = QSpinBox()
+        self.tick_width_spinbox.setRange(1,10)
+        self.tick_width_spinbox.setValue(1)
+        self.tick_width_spinbox.valueChanged.connect(self.update_tick_marks)
+        tick_layout.addRow('Tick Width:', self.tick_width_spinbox)
+
+        # Tick Interval X
+        self.tick_interval_x_spinbox = QSpinBox()
+        self.tick_interval_x_spinbox.setRange(1, 1000)
+        self.tick_interval_x_spinbox.setValue(0)  # 0 means auto
+        self.tick_interval_x_spinbox.valueChanged.connect(self.update_tick_marks)
+        tick_layout.addRow('X-axis Tick Interval:', self.tick_interval_x_spinbox)
+
+        # Tick Interval Y
+        self.tick_interval_y_spinbox = QSpinBox()
+        self.tick_interval_y_spinbox.setRange(1, 1000)
+        self.tick_interval_y_spinbox.setValue(0)  # 0 means auto
+        self.tick_interval_y_spinbox.valueChanged.connect(self.update_tick_marks)
+        tick_layout.addRow('Y-axis Tick Interval:', self.tick_interval_y_spinbox)
+
+        config_layout.addWidget(tick_group)
+
+        # Peak Points and Labels
+        peaks_group = QGroupBox('Peaks Display')
+        peaks_layout = QFormLayout()
+        peaks_group.setLayout(peaks_layout)
+
+        # Toggle Peak Points
+        self.show_peak_points_checkbox = QCheckBox('Show Peak Points')
+        self.show_peak_points_checkbox.setChecked(True)
+        self.show_peak_points_checkbox.stateChanged.connect(self.update_peak_points_visibility)
+        peaks_layout.addRow(self.show_peak_points_checkbox)
+
+        # Toggle Peak Labels
+        self.show_peak_labels_checkbox = QCheckBox('Show Peak Labels')
+        self.show_peak_labels_checkbox.setChecked(False)
+        self.show_peak_labels_checkbox.stateChanged.connect(self.update_peak_labels_visibility)
+        peaks_layout.addRow(self.show_peak_labels_checkbox)
+
+        # Peak Label Font Size
+        self.peak_label_font_size_spinbox = QSpinBox()
+        self.peak_label_font_size_spinbox.setRange(6, 24)
+        self.peak_label_font_size_spinbox.setValue(10)
+        self.peak_label_font_size_spinbox.valueChanged.connect(self.update_peak_labels_style)
+        peaks_layout.addRow('Peak Label Font Size:', self.peak_label_font_size_spinbox)
+
+        # Peak Label Color
+        self.peak_label_color_button = QPushButton()
+        self.peak_label_color_button.setStyleSheet("background-color: red")
+        self.peak_label_color_button.clicked.connect(self.select_peak_label_color)
+        peaks_layout.addRow('Peak Label Color:', self.peak_label_color_button)
+
+        config_layout.addWidget(peaks_group)
+
+        # Axis Labels
+        axis_group = QGroupBox('Axis Labels')
+        axis_layout = QFormLayout()
+        axis_group.setLayout(axis_layout)
+
+        # Axis Label Font Size
+        self.axis_label_font_size_spinbox = QSpinBox()
+        self.axis_label_font_size_spinbox.setRange(6, 24)
+        self.axis_label_font_size_spinbox.setValue(12)
+        self.axis_label_font_size_spinbox.valueChanged.connect(self.update_axis_labels_style)
+        axis_layout.addRow('Axis Label Font Size:', self.axis_label_font_size_spinbox)
+
+        # Axis Label Color
+        self.axis_label_color_button = QPushButton()
+        self.axis_label_color_button.setStyleSheet("background-color: black")
+        self.axis_label_color_button.clicked.connect(self.select_axis_label_color)
+        axis_layout.addRow('Axis Label Color:', self.axis_label_color_button)
+
+        config_layout.addWidget(axis_group)
 
 
+        # Create the scroll area and set it to hold the config_content widget
+        scroll_area = QScrollArea(self.config_panel)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(config_content)  # Set the content widget in the scroll area
+
+        # Set the scroll area as the central layout of the config panel (QDialog)
+        layout = QVBoxLayout(self.config_panel)
+        layout.addWidget(scroll_area)
+
+
+    def toggle_config_panel(self):
+        if self.config_panel.isVisible():
+            self.config_panel.setVisible(False)
+            self.toggle_config_panel_button.setText('Show Config Panel')
+        else:
+            self.config_panel.setVisible(True)
+            self.toggle_config_panel_button.setText('Hide Config Panel')
+
+    def on_config_dialog_close(self):
+        if not self.config_panel.isVisible():
+            self.toggle_config_panel_button.setText('Show Config Panel')
+
+    def select_gaussian_sum_color(self):
+        color = QColorDialog.getColor(self.gaussian_sum_color, self, 'Select Gaussian Sum Color')
+        if color.isValid():
+            self.gaussian_sum_line_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.gaussian_sum_color = color
+            self.gaussian_sum_pen.setColor(color)
+            self.update_gaussian_sum_style()
+
+    def update_gaussian_sum_style(self):
+        style = self.gaussian_sum_line_style_combo.currentText()
+        thickness = self.gaussian_sum_line_thickness_spinbox.value()
+        color = self.gaussian_sum_pen.color()
+
+        pen_style = self.get_pen_style(style)
+        self.gaussian_sum_pen = pg.mkPen(color=color, width=thickness, style=pen_style)
+
+        if self.gaussian_sum:
+            self.gaussian_sum.setPen(self.gaussian_sum_pen)
+
+    def select_gaussian_color(self):
+        color = QColorDialog.getColor(self.gaussian_color, self, 'Select Gaussian Color')
+        if color.isValid():
+            self.gaussian_line_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.gaussian_color = color
+            self.gaussian_pen.setColor(color)
+            self.update_gaussian_style()
+
+    def update_gaussian_style(self):
+        style = self.gaussian_line_style_combo.currentText()
+        thickness = self.gaussian_line_thickness_spinbox.value()
+        color = self.gaussian_pen.color()
+
+        pen_style = self.get_pen_style(style)
+        self.gaussian_pen = pg.mkPen(color=color, width=thickness, style=pen_style)
+
+        for gaussian_curve in self.gaussians:
+            gaussian_curve.setPen(self.gaussian_pen)
+
+    def select_spectrum_color(self):
+        color = QColorDialog.getColor(self.spectrum_color, self, 'Select Spectrum Color')
+        if color.isValid():
+            self.spectrum_line_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.spectrum_color = color
+            self.spectrum_pen.setColor(color)
+            self.update_spectrum_style()
+
+    def update_spectrum_style(self):
+        style = self.spectrum_line_style_combo.currentText()
+        thickness = self.spectrum_line_thickness_spinbox.value()
+        color = self.spectrum_pen.color()
+
+        pen_style = self.get_pen_style(style)
+        self.spectrum_pen = pg.mkPen(color=color, width=thickness, style=pen_style)
+
+        # Update the spectrum plot
+        if hasattr(self, 'spectrum_plot'):
+            self.spectrum_plot.setPen(self.spectrum_pen)
+
+    def select_background_color(self):
+        color = QColorDialog.getColor(self.background_color, self, 'Select Background Color')
+        if color.isValid():
+            self.background_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.background_color = color
+            self.plot1.setBackground(self.background_color)
+
+    # def update_tick_marks(self):
+    #     x_ticks = self.tick_marks_x_checkbox.isChecked()
+    #     y_ticks = self.tick_marks_y_checkbox.isChecked()
+    #     tick_position = self.tick_position_combo.currentText()
+    #     x_interval = self.tick_interval_x_spinbox.value()
+    #     y_interval = self.tick_interval_y_spinbox.value()
+    #     tick_width = self.tick_width_spinbox.value()
+
+    #     # Update X-axis
+    #     x_axis = self.plot1.getAxis('bottom')
+    #     x_axis.setTicks([] if not x_ticks else None)
+    #     x_axis.setStyle(showValues=x_ticks)
+    #     x_axis.setTickSpacing(levels=[(x_interval, 0)] if x_interval > 0 else None)
+    #     x_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
+
+    #     # Update Y-axis
+    #     y_axis = self.plot1.getAxis('left')
+    #     y_axis.setTicks([] if not y_ticks else None)
+    #     y_axis.setStyle(showValues=y_ticks)
+    #     y_axis.setTickSpacing(levels=[(y_interval, 0)] if y_interval > 0 else None)
+    #     y_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
+
+    #     self.plot1.replot()
+
+    def update_tick_marks(self):
+        x_ticks = self.tick_marks_x_checkbox.isChecked()
+        y_ticks = self.tick_marks_y_checkbox.isChecked()
+        tick_position = self.tick_position_combo.currentText()
+        x_interval = self.tick_interval_x_spinbox.value()
+        y_interval = self.tick_interval_y_spinbox.value()
+        tick_width = self.tick_width_spinbox.value()
+
+        # Update X-axis
+        x_axis = self.plot1.getAxis('bottom')
+
+        # Get current pen, modify its width, and apply it back
+        current_x_pen = x_axis.pen()
+        new_x_pen = QPen(current_x_pen.color(), tick_width, current_x_pen.style())
+        x_axis.setTickPen(new_x_pen)
+
+        x_axis.setTicks([] if not x_ticks else None)
+        x_axis.setStyle(showValues=x_ticks)
+        x_axis.setTickSpacing(levels=[(x_interval, 0)] if x_interval > 0 else None)
+        x_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
+
+        # Update Y-axis
+        y_axis = self.plot1.getAxis('left')
+
+        # Get current pen, modify its width, and apply it back
+        current_y_pen = y_axis.pen()
+        new_y_pen = QPen(current_y_pen.color(), tick_width, current_y_pen.style())
+        y_axis.setTickPen(new_y_pen)
+
+        y_axis.setTicks([] if not y_ticks else None)
+        y_axis.setStyle(showValues=y_ticks)
+        y_axis.setTickSpacing(levels=[(y_interval, 0)] if y_interval > 0 else None)
+        y_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
+
+        # Force the plot to re-render
+        self.plot1.replot()
+
+    def update_peak_points_visibility(self):
+        self.show_peak_points = self.show_peak_points_checkbox.isChecked()
+        self.refresh_peaks_view()
+
+    def update_peak_labels_visibility(self):
+        self.show_peak_labels = self.show_peak_labels_checkbox.isChecked()
+        if self.show_peak_labels:
+            self.add_peak_labels()
+        else:
+            self.remove_peak_labels()
+
+    def update_peak_labels_style(self):
+        self.peak_label_font_size = self.peak_label_font_size_spinbox.value()
+        if self.show_peak_labels:
+            self.remove_peak_labels()
+            self.add_peak_labels()
+
+    def select_peak_label_color(self):
+        color = QColorDialog.getColor(self.peak_label_color, self, 'Select Peak Label Color')
+        if color.isValid():
+            self.peak_label_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.peak_label_color = color
+            if self.show_peak_labels:
+                self.remove_peak_labels()
+                self.add_peak_labels()
+
+    def update_axis_labels_style(self):
+        self.axis_label_font_size = self.axis_label_font_size_spinbox.value()
+        font = QFont()
+        font.setPointSize(self.axis_label_font_size)
+        color = self.axis_label_color.name()
+        tick_width = self.tick_width_spinbox.value()
+
+        # Update axis labels
+        self.plot1.getAxis('bottom').setStyle(tickFont=font)
+        self.plot1.getAxis('bottom').setPen(pg.mkPen(color))
+        self.plot1.getAxis('bottom').setTextPen(pg.mkPen(color))
+        #self.plot1.getAxis('bottom').setTickPen(pg.mkPen(color))
+        self.plot1.getAxis('left').setStyle(tickFont=font)
+        self.plot1.getAxis('left').setPen(pg.mkPen(color))
+        self.plot1.getAxis('left').setTextPen(pg.mkPen(color))
+        #self.plot1.getAxis('left').setTickPen(pg.mkPen(color))
+
+        x_axis = self.plot1.getAxis('bottom')
+        y_axis = self.plot1.getAxis('left')
+
+        # Get current pen, modify its width, and apply it back
+        current_x_pen = x_axis.pen()
+        new_x_pen = QPen(self.axis_label_color, tick_width, current_x_pen.style())
+        x_axis.setTickPen(new_x_pen)
+
+        # Get current pen, modify its width, and apply it back
+        current_y_pen = y_axis.pen()
+        new_y_pen = QPen(self.axis_label_color, tick_width, current_y_pen.style())
+        y_axis.setTickPen(new_y_pen)
+
+        self.plot1.replot()
+
+    def select_axis_label_color(self):
+        color = QColorDialog.getColor(self.axis_label_color, self, 'Select Axis Label Color')
+        if color.isValid():
+            self.axis_label_color_button.setStyleSheet(f"background-color: {color.name()}")
+            self.axis_label_color = color
+            self.update_axis_labels_style()
+
+    def get_pen_style(self, style_str):
+        if style_str == 'Solid':
+            return QtCore.Qt.PenStyle.SolidLine
+        elif style_str == 'Dash':
+            return QtCore.Qt.PenStyle.DashLine
+        elif style_str == 'Dot':
+            return QtCore.Qt.PenStyle.DotLine
+        elif style_str == 'DashDot':
+            return QtCore.Qt.PenStyle.DashDotLine
+        else:
+            return QtCore.Qt.PenStyle.SolidLine
+    
     def print_fit_stats(self):
         if self.fit_stats_2 is not None:
             for peak, stats in self.fit_stats_2.items():

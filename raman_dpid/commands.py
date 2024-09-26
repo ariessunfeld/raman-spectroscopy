@@ -400,7 +400,8 @@ class FitPeaksCommand2(Command):
     def __init__(self, app, peaks: list[float]):
         self.app = app
         self.peaks = peaks
-        self.old_fit_stats = self.app.fit_stats_2
+        self.old_fit_stats = self.app.fit_stats_2.copy() if self.app.fit_stats_2 is not None else None
+        self.new_x = np.linspace(min(self.app.spectrum.x), max(self.app.spectrum.x), 10_000)
 
     def execute(self):
 
@@ -442,9 +443,6 @@ class FitPeaksCommand2(Command):
         self.app.peak_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Height'], angle=0, movable=True, pen=pg.mkPen('r', width=2))
         self.app.center_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Center'], angle=90, movable=True, pen=pg.mkPen('b', width=2))
         self.app.sigma_line = pg.InfiniteLine(pos=fit_stats['Peak 1']['Center'] + fit_stats['Peak 1']['Sigma'], angle=90, movable=True, pen=pg.mkPen('g', width=2))
-        # self.app.plot1.addItem(self.app.peak_line)
-        # self.app.plot1.addItem(self.app.center_line)
-        # self.app.plot1.addItem(self.app.sigma_line)
 
         # Set the update flag in the app
         self.app.updating_lines = False
@@ -457,9 +455,67 @@ class FitPeaksCommand2(Command):
         # Configure the dropdown
         self.app.dropdown_edit_peak.clear()
         self.app.dropdown_edit_peak.addItems(['Edit Peak: None Selected'])
-        self.app.dropdown_edit_peak.addItems([f'Edit Peak: Peak {x+1}' for x in range(len(fit_stats))])
+        for i, (key, val) in enumerate(fit_stats.items()):
+            label = f'Edit: {key} (~{round(val["Center"], 1)})'
+            self.app.dropdown_edit_peak.addItem(label)
+        #self.app.dropdown_edit_peak.addItems([f'Edit Peak: Peak {x+1}' for x in range(len(fit_stats))])
         self.app.dropdown_edit_peak.setEnabled(True)
 
     def undo(self):
+        
         # revert to the old fit stats
-        pass
+        self.app.fit_stats_2 = self.old_fit_stats.copy() if self.old_fit_stats is not None else None
+
+        # Cleanup old curves
+        for curve in self.app.gaussians:
+            self.app.plot1.removeItem(curve)
+
+        # Cleanup old sum
+        if self.app.gaussian_sum: 
+            self.app.plot1.removeItem(self.app.gaussian_sum)
+
+        # Reset the list
+        self.app.gaussians = []
+
+        # Plot the OLD curves
+        if self.app.fit_stats_2 is not None:
+            y_sum = np.zeros(self.new_x.shape)
+            for peak, stats in self.app.fit_stats_2.items():
+                y = gaussian(self.new_x, stats['Height'], stats['Center'], stats['Sigma'])
+                y_sum += y
+                self.app.gaussians.append(
+                    self.app.plot1.plot(self.new_x, y,
+                        pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
+                    ))
+
+            # Plot the OLD sum
+            self.app.gaussian_sum = self.app.plot1.plot(self.new_x, y_sum, pen=pg.mkPen('m', width=2))
+
+        # Remove existing control lines
+        self.app.plot1.removeItem(self.app.peak_line)
+        self.app.plot1.removeItem(self.app.center_line)
+        self.app.plot1.removeItem(self.app.sigma_line)
+
+        # Add the new control lines
+        if self.app.fit_stats_2 is not None:
+            self.app.peak_line = pg.InfiniteLine(pos=self.app.fit_stats_2['Peak 1']['Height'], angle=0, movable=True, pen=pg.mkPen('r', width=2))
+            self.app.center_line = pg.InfiniteLine(pos=self.app.fit_stats_2['Peak 1']['Center'], angle=90, movable=True, pen=pg.mkPen('b', width=2))
+            self.app.sigma_line = pg.InfiniteLine(pos=self.app.fit_stats_2['Peak 1']['Center'] + self.app.fit_stats_2['Peak 1']['Sigma'], angle=90, movable=True, pen=pg.mkPen('g', width=2))
+
+            # Connect signals
+            self.app.peak_line.sigPositionChanged.connect(self.app.update_gaussians)
+            self.app.center_line.sigPositionChanged.connect(self.app.move_center)
+            self.app.sigma_line.sigPositionChanged.connect(self.app.move_sigma)
+            
+        # Set the update flag in the app
+        self.app.updating_lines = False
+
+        # Configure the dropdown
+        self.app.dropdown_edit_peak.clear()
+        self.app.dropdown_edit_peak.addItems(['Edit Peak: None Selected'])
+        if self.app.fit_stats_2 is not None:
+            for i, (key, val) in enumerate(self.app.fit_stats_2.items()):
+                label = f'Edit: {key} (~{round(val["Center"], 1)})'
+                self.app.dropdown_edit_peak.addItem(label)
+            self.app.dropdown_edit_peak.setEnabled(True)
+        
