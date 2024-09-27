@@ -42,6 +42,7 @@ from PyQt6.QtCore import (
     qInstallMessageHandler
 )
 import pyqtgraph as pg
+from pyqtgraph.exporters import ImageExporter
 
 import numpy as np
 import sqlite3
@@ -163,7 +164,8 @@ class MainApp(QMainWindow):
             'Find peaks',
             'Fit peaks',
             'Save spectrum',
-            'Save fits'
+            'Save fits',
+            'Save plot as PNG'
         ]
         self.current_batch_file_index = 0
         self.current_batch_step_index = 0
@@ -675,7 +677,11 @@ class MainApp(QMainWindow):
                             f.write(f"{key}: {val}\n")
             self.plot1_log.addItem(f'Saved fits to: {fits_save_path}')
 
-        # Move to next step
+        elif current_step == 'Save plot as PNG':
+            # Call the method to save the spectrum plot as PNG
+            self.save_spectrum_as_png()
+
+        # Move to the next step
         self.current_batch_step_index += 1
 
         if self.current_batch_step_index >= len(self.batch_processing_steps):
@@ -701,7 +707,27 @@ class MainApp(QMainWindow):
                 self.next_action_label.setText(next_step)
 
 
+    def save_spectrum_as_png(self):
+        if self.spectrum is None:
+            QMessageBox.warning(self, 'No Spectrum', 'No spectrum loaded to save as PNG.')
+            return
 
+        # Construct the file path for saving
+        default_name = f"{self.unknown_spectrum_path.stem}_spectrum.png"
+        png_save_path = os.path.join(self.folder_path, default_name)
+        
+        # Use pyqtgraph's ImageExporter to export the plot as PNG
+        exporter = ImageExporter(self.plot1.plotItem)
+        
+        # Set the export size (optional, you can remove this if you want to use the default size)
+        exporter.parameters()['width'] = 10_000  # Adjust width as needed for higher resolution
+        
+        try:
+            # Save the file
+            exporter.export(png_save_path)
+            self.plot1_log.addItem(f'Saved spectrum plot as PNG: {png_save_path}')
+        except Exception as e:
+            QMessageBox.critical(self, 'Error Saving PNG', f'Error occurred while saving PNG: {str(e)}')
 
     def init_config_model(self):
         # Initialize with some default colors
