@@ -5,6 +5,8 @@ class. Each has an `undo` and an `execute` method. The commands are stored in th
 GUI's `command_history` list. This structure enables Undo/Redo functionality in the GUI.
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
@@ -13,6 +15,9 @@ from raman_dpid.utils import (
     fit_gauss,
     gaussian
 )
+
+if TYPE_CHECKING:
+    from raman_dpid.gui import MainApp
 
 
 class Command:
@@ -70,7 +75,7 @@ class CommandHistory:
 
 class LoadSpectrumCommand(Command):
     """Command to load a spectrum"""
-    def __init__(self, app, xdata, ydata):
+    def __init__(self, app: "MainApp", xdata, ydata):
         self.app = app
         self.new_spectrum = CommandSpectrum(xdata, ydata)
         if self.app.spectrum is not None:
@@ -94,7 +99,7 @@ class LoadSpectrumCommand(Command):
         self.app.spectrum = self.new_spectrum
         if self.app.spectrum is not None:
             self.app.plot1.clear()
-            self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
+            self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, pen=self.app.spectrum_pen)
             self.app.plot1.autoRange()
 
         # Communicate
@@ -107,7 +112,7 @@ class LoadSpectrumCommand(Command):
         self.app.spectrum = self.old_spectrum
         if self.app.spectrum is not None:
             self.app.plot1.clear()
-            self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
+            self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, self.app.spectrum_pen)
             self.app.plot1.autoRange()
         else:
             self.app.plot1.clear()
@@ -115,7 +120,7 @@ class LoadSpectrumCommand(Command):
 
 class PointDragCommand(Command):
     """Command for moving a point on the baseline"""
-    def __init__(self, app, index, startX, startY, endX, endY):
+    def __init__(self, app: "MainApp", index, startX, startY, endX, endY):
         self.app = app
         self.index = index
         self.startX = startX
@@ -136,7 +141,7 @@ class PointDragCommand(Command):
 
 class EstimateBaselineCommand(Command):
     """This command stores the baseline estimate calculation and necessary GUI updates"""
-    def __init__(self, app, estimated_baseline):
+    def __init__(self, app: "MainApp", estimated_baseline):
         self.app = app
         self.new_baseline = estimated_baseline
         if self.app.baseline_data is not None:
@@ -176,7 +181,7 @@ class EstimateBaselineCommand(Command):
 
 class CorrectBaselineCommand(Command):
     """Command for subtracting the baseline estimate from the loaded spectrum"""
-    def __init__(self, app):
+    def __init__(self, app: "MainApp"):
         self.app = app
 
         # Store the old spectrum
@@ -201,7 +206,7 @@ class CorrectBaselineCommand(Command):
         
         self.app.spectrum = self.new_spectrum
         self.app.plot1.clear()
-        self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
+        self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, self.app.spectrum_pen)
         self.app.plot1.autoRange()
 
     def undo(self):
@@ -222,7 +227,7 @@ class CorrectBaselineCommand(Command):
 
 
 class CropCommand(Command):
-    def __init__(self, app, crop_start_x, crop_end_x):
+    def __init__(self, app: "MainApp", crop_start_x, crop_end_x):
         self.app = app
         self.crop_start_x = crop_start_x
         self.crop_end_x = crop_end_x
@@ -244,19 +249,19 @@ class CropCommand(Command):
     def execute(self):
         self.app.spectrum = self.new_spectrum
         self.app.plot1.clear()
-        self.app.plot1.plot(*self.app.spectrum)
+        self.app.spectrum_plot = self.app.plot1.plot(*self.app.spectrum, pen=self.app.spectrum_pen)
         self.app.plot1_log.addItem(f'Cropped spectrum from {round(self.crop_start_x)} to {round(self.crop_end_x)} cm^-1')
 
     def undo(self):
         self.app.spectrum = self.old_spectrum
         self.app.plot1.clear()
         if self.app.spectrum is not None:
-            self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
+            self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, pen=self.app.spectrum_pen)
             self.app.plot1_log.addItem(f'Undid crop from {round(self.crop_start_x)} to {round(self.crop_end_x)} cm^-1')
 
 
 class SmoothCommand(Command):
-    def __init__(self, app):
+    def __init__(self, app: "MainApp"):
         self.app = app
         
         # Back up app spectrum if not none        
@@ -275,20 +280,20 @@ class SmoothCommand(Command):
     def execute(self):
         self.app.spectrum = self.new_spectrum
         self.app.plot1.clear()
-        self.app.plot1.plot(*self.app.spectrum)
+        self.app.spectrum_plot = self.app.plot1.plot(*self.app.spectrum, pen=self.app.spectrum_pen)
         self.app.plot1_log.addItem(f'Smoothed spectrum')
 
     def undo(self):
         self.app.spectrum = self.old_spectrum
         self.app.plot1.clear()
         if self.app.spectrum is not None:
-            self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
+            self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, pen=self.app.spectrum_pen)
             self.app.plot1_log.addItem(f'Undid spectrum smoothing')
 
 
 class AddPeakPointCommand(Command):
     """TODO Implement peak point adding"""
-    def __init__(self, app, x: float, y: float):
+    def __init__(self, app: "MainApp", x: float, y: float):
         self.app = app
         self.x = x
         self.y = y
@@ -308,7 +313,7 @@ class AddPeakPointCommand(Command):
 
 class RemovePeakPointCommand(Command):
     """TODO Implement peak point removal"""
-    def __init__(self, app, idx: int):
+    def __init__(self, app: "MainApp", idx: int):
         self.app = app
         self.idx = idx
 
@@ -326,7 +331,7 @@ class RemovePeakPointCommand(Command):
 
 
 class FitPeaksCommand(Command):
-    def __init__(self, app, peaks: list[float]):
+    def __init__(self, app: "MainApp", peaks: list[float]):
         self.app = app
         self.peaks = peaks
         self.old_fit = self.app.fit
@@ -360,16 +365,6 @@ class FitPeaksCommand(Command):
         # Add the fit to the plot
         self.app.plot1.addItem(self.app.fit_trace)
 
-        # Add the individual components of the fit
-        # for prefix, component in result.model.components.items():
-        #     if 'gaussian' in component.__class__.__name__.lower():
-        #         component_trace = pg.PlotDataItem(
-        #             self.app.spectrum.x, 
-        #             result.eval_components()[prefix],
-        #             pen=pg.mkPen('b', style=QtCore.Qt.PenStyle.DotLine, width=1))
-        #         self.new_fit_component_traces.append(component_trace)
-        #         self.app.plot1.addItem(component_trace)
-
         # Plot each individual Gaussian component
         components = result.eval_components(x=self.app.spectrum.x)
         for i, peak in enumerate(self.peaks):
@@ -397,7 +392,7 @@ class FitPeaksCommand(Command):
 
 
 class FitPeaksCommand2(Command):
-    def __init__(self, app, peaks: list[float]):
+    def __init__(self, app: "MainApp", peaks: list[float]):
         self.app = app
         self.peaks = peaks
         self.old_fit_stats = self.app.fit_stats_2.copy() if self.app.fit_stats_2 is not None else None
@@ -423,8 +418,9 @@ class FitPeaksCommand2(Command):
             y = gaussian(new_x, stats['Height'], stats['Center'], stats['Sigma'])
             y_sum += y
             self.app.gaussians.append(
-                self.app.plot1.plot(new_x, y,
-                    pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
+                self.app.plot1.plot(
+                    new_x, y, pen=self.app.gaussian_pen
+                    #pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
                 ))
             
         # Cleanup old sum
@@ -432,7 +428,12 @@ class FitPeaksCommand2(Command):
             self.app.plot1.removeItem(self.app.gaussian_sum)
 
         # Plot the sum
-        self.app.gaussian_sum = self.app.plot1.plot(new_x, y_sum, pen=pg.mkPen('m', width=2))
+        self.app.gaussian_sum = self.app.plot1.plot(
+            new_x, 
+            y_sum, 
+            pen=self.app.gaussian_sum_pen
+            #pen=pg.mkPen('m', width=2)
+        )
 
         # Remove existing control lines
         self.app.plot1.removeItem(self.app.peak_line)
@@ -484,12 +485,20 @@ class FitPeaksCommand2(Command):
                 y = gaussian(self.new_x, stats['Height'], stats['Center'], stats['Sigma'])
                 y_sum += y
                 self.app.gaussians.append(
-                    self.app.plot1.plot(self.new_x, y,
-                        pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
+                    self.app.plot1.plot(
+                        self.new_x, 
+                        y,
+                        pen=self.app.gaussian_pen
+                        #pen=pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
                     ))
 
             # Plot the OLD sum
-            self.app.gaussian_sum = self.app.plot1.plot(self.new_x, y_sum, pen=pg.mkPen('m', width=2))
+            self.app.gaussian_sum = self.app.plot1.plot(
+                self.new_x, 
+                y_sum, 
+                pen=self.app.gaussian_sum_pen
+                #pen=pg.mkPen('m', width=2)
+            )
 
         # Remove existing control lines
         self.app.plot1.removeItem(self.app.peak_line)

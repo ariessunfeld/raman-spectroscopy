@@ -120,6 +120,7 @@ class MainApp(QMainWindow):
 
         self.peaks_x = np.array([])
         self.peaks_y = np.array([])
+        self.spectrum_plot = None
         
         self.peak_line = None
         self.center_line = None
@@ -130,7 +131,7 @@ class MainApp(QMainWindow):
         # Default styles
         self.gaussian_sum_pen = pg.mkPen('m', width=2)
         self.gaussian_pen = pg.mkPen('g', width=2, style=QtCore.Qt.PenStyle.DashLine)
-        self.spectrum_pen = pg.mkPen('b', width=1)
+        self.spectrum_pen = pg.mkPen('w', width=1)
         self.background_color = QColor('w')
         self.show_peak_points = True
         self.show_peak_labels = False
@@ -171,6 +172,8 @@ class MainApp(QMainWindow):
         self.current_batch_step_index = 0
         self.batch_files = []
         self.folder_path = ''
+
+        self.init_config_model()
 
     def setup_connections(self):
         self.plot1.point_added.connect(self.on_point_added)
@@ -407,7 +410,7 @@ class MainApp(QMainWindow):
         plot1_buttons_layout.addWidget(self.dropdown_edit_peak)
 
         # Button: print fits
-        self.button_print_fits = QPushButton('Print Fits', self)
+        self.button_print_fits = QPushButton('Save Fits and Write PNG', self)
         self.button_print_fits.clicked.connect(self.print_fit_stats)
         plot1_buttons_layout.addWidget(self.button_print_fits)
 
@@ -733,7 +736,7 @@ class MainApp(QMainWindow):
         # Initialize with some default colors
         self.gaussian_sum_color = QColor('magenta')
         self.gaussian_color = QColor('green')
-        self.spectrum_color = QColor('blue')
+        self.spectrum_color = QColor('white')
         self.background_color = QColor('black')
 
     def init_config_panel(self):
@@ -815,7 +818,7 @@ class MainApp(QMainWindow):
 
         # Line Color
         self.spectrum_line_color_button = QPushButton()
-        self.spectrum_line_color_button.setStyleSheet("background-color: blue")
+        self.spectrum_line_color_button.setStyleSheet("background-color: white")
         self.spectrum_line_color_button.clicked.connect(self.select_spectrum_color)
         spectrum_layout.addRow('Color:', self.spectrum_line_color_button)
 
@@ -867,6 +870,7 @@ class MainApp(QMainWindow):
         self.tick_interval_x_spinbox.setRange(1, 1000)
         self.tick_interval_x_spinbox.setValue(0)  # 0 means auto
         self.tick_interval_x_spinbox.valueChanged.connect(self.update_tick_marks)
+        self.tick_interval_x_spinbox.setEnabled(False)
         tick_layout.addRow('X-axis Tick Interval:', self.tick_interval_x_spinbox)
 
         # Tick Interval Y
@@ -874,6 +878,7 @@ class MainApp(QMainWindow):
         self.tick_interval_y_spinbox.setRange(1, 1000)
         self.tick_interval_y_spinbox.setValue(0)  # 0 means auto
         self.tick_interval_y_spinbox.valueChanged.connect(self.update_tick_marks)
+        self.tick_interval_y_spinbox.setEnabled(False)
         tick_layout.addRow('Y-axis Tick Interval:', self.tick_interval_y_spinbox)
 
         config_layout.addWidget(tick_group)
@@ -1060,7 +1065,7 @@ class MainApp(QMainWindow):
 
         x_axis.setTicks([] if not x_ticks else None)
         x_axis.setStyle(showValues=x_ticks)
-        x_axis.setTickSpacing(levels=[(x_interval, 0)] if x_interval > 0 else None)
+        #x_axis.setTickSpacing(levels=[(x_interval, 0)] if x_interval > 0 else None)
         x_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
 
         # Update Y-axis
@@ -1073,7 +1078,7 @@ class MainApp(QMainWindow):
 
         y_axis.setTicks([] if not y_ticks else None)
         y_axis.setStyle(showValues=y_ticks)
-        y_axis.setTickSpacing(levels=[(y_interval, 0)] if y_interval > 0 else None)
+        #y_axis.setTickSpacing(levels=[(y_interval, 0)] if y_interval > 0 else None)
         y_axis.setStyle(tickLength=-5 if tick_position == 'Inside' else 5)
 
         # Force the plot to re-render
@@ -1163,6 +1168,19 @@ class MainApp(QMainWindow):
                 for key, val in stats.items():
                     if key in ['Center', 'Sigma', 'Height']:
                         print(f'\t{key}: {val}')
+
+            # Save the fits to a file
+            fits_save_path = os.path.join(self.folder_path, f"{self.unknown_spectrum_path.stem}_fits.txt")
+            with open(fits_save_path, 'w') as f:
+                for peak, stats in self.fit_stats_2.items():
+                    f.write(f"{peak}\n")
+                    for key, val in stats.items():
+                        if key in ['Center', 'Sigma', 'Height']:
+                            f.write(f"{key}: {val}\n")
+            self.plot1_log.addItem(f'Saved fits to: {fits_save_path}')
+
+            # Save PNG
+            self.save_spectrum_as_png()
 
 
     def change_mouse_mode(self):
