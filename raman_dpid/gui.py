@@ -472,20 +472,42 @@ class MainApp(QMainWindow):
         plot1_peak_params_layout.addWidget(self.textbox_prominence, 1, 1)
 
         # Button: Find peaks
-        plot1_peaks_buttons_layout = QHBoxLayout()
+        # plot1_peaks_buttons_layout = QHBoxLayout()
+        # plot1_peaks_buttons_widget = QWidget()
+        # plot1_peaks_buttons_widget.setLayout(plot1_peaks_buttons_layout)
+        # plot1_buttons_layout.addWidget(plot1_peaks_buttons_widget)
+
+        # self.button_find_peaks = QPushButton('Find Peaks', self)
+        # self.button_find_peaks.clicked.connect(self.find_peaks)
+        # #plot1_buttons_layout.addWidget(self.button_find_peaks)
+        # plot1_peaks_buttons_layout.addWidget(self.button_find_peaks)
+
+        # # Button: Show peak positions
+        # self.button_show_peak_labels = QPushButton('Show Labels', self)
+        # self.button_show_peak_labels.clicked.connect(self.toggle_labels_callback)
+        # plot1_peaks_buttons_layout.addWidget(self.button_show_peak_labels)
+
+        # # Button: Toggle crosshair
+        # self.toggle_crosshair_button = QPushButton('Show Crosshair', self)
+        # self.toggle_crosshair_button.clicked.connect(self.toggle_crosshair)
+        # plot1_peaks_buttons_layout.addWidget(self.toggle_crosshair_button)
+
+        plot1_peaks_buttons_layout = QGridLayout()
         plot1_peaks_buttons_widget = QWidget()
         plot1_peaks_buttons_widget.setLayout(plot1_peaks_buttons_layout)
         plot1_buttons_layout.addWidget(plot1_peaks_buttons_widget)
 
         self.button_find_peaks = QPushButton('Find Peaks', self)
         self.button_find_peaks.clicked.connect(self.find_peaks)
-        #plot1_buttons_layout.addWidget(self.button_find_peaks)
-        plot1_peaks_buttons_layout.addWidget(self.button_find_peaks)
+        plot1_peaks_buttons_layout.addWidget(self.button_find_peaks, 0, 0)
 
-        # Button: Show peak positions
         self.button_show_peak_labels = QPushButton('Show Labels', self)
         self.button_show_peak_labels.clicked.connect(self.toggle_labels_callback)
-        plot1_peaks_buttons_layout.addWidget(self.button_show_peak_labels)
+        plot1_peaks_buttons_layout.addWidget(self.button_show_peak_labels, 0, 1)
+
+        self.toggle_crosshair_button = QPushButton('Crosshair', self)
+        self.toggle_crosshair_button.clicked.connect(self.toggle_crosshair)
+        plot1_peaks_buttons_layout.addWidget(self.toggle_crosshair_button, 1, 0)
 
         # ListWidget: Log for Plot 1
         self.plot1_log = QListWidget()
@@ -1027,6 +1049,17 @@ class MainApp(QMainWindow):
             self.background_color_button.setStyleSheet(f"background-color: {color.name()}")
             self.background_color = color
             self.plot1.setBackground(self.background_color)
+
+
+    def toggle_crosshair(self):
+        """Toggle the crosshair display on the plot"""
+        is_enabled = self.plot1.toggle_crosshair()
+        
+        if is_enabled:
+            self.toggle_crosshair_button.setText('Hide Crosshair')
+        else:
+            self.toggle_crosshair_button.setText('Show Crosshair')
+
 
     # def update_tick_marks(self):
     #     x_ticks = self.tick_marks_x_checkbox.isChecked()

@@ -2,7 +2,7 @@
 
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtCore import pyqtSignal
 import pyqtgraph as pg
 import numpy as np
@@ -19,11 +19,66 @@ class CroppablePlotWidget(pg.PlotWidget):
         self.crop_region = None
         self.points = {'x': np.array([]), 'y': np.array([])}
         self.mode = 'normal'
-
+        # Add crosshair functionality
+        self.crosshair_enabled = False
+        self.vLine = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen('y', width=1))
+        self.hLine = pg.InfiniteLine(angle=0, movable=False, pen=pg.mkPen('y', width=1))
+        
+        # Add text item for coordinates
+        self.label = pg.TextItem(text="", anchor=(0, 0), color='y')
+        
+        # Use SignalProxy for performance
+        self.proxy = pg.SignalProxy(self.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
+        
         # Set up mouse click event for adding points in empty space
         self.scene().sigMouseClicked.connect(self.on_scene_click)
         
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def toggle_crosshair(self):
+        """Toggle the crosshair visibility"""
+        self.crosshair_enabled = not self.crosshair_enabled
+        
+        if self.crosshair_enabled:
+            self.addItem(self.vLine, ignoreBounds=True)
+            self.addItem(self.hLine, ignoreBounds=True)
+            self.addItem(self.label)
+        else:
+            self.removeItem(self.vLine)
+            self.removeItem(self.hLine)
+            self.removeItem(self.label)
+        
+        return self.crosshair_enabled
+
+    def mouseMoved(self, evt):
+        """Handle mouse movement and update crosshair position"""
+        if not self.crosshair_enabled:
+            return
+        
+        # Fix for different event types - handle both QPointF and tuple/list
+        if isinstance(evt, QtCore.QPointF):
+            pos = evt
+        else:
+            # In some configurations, SignalProxy might wrap the event in a tuple
+            try:
+                pos = evt[0]
+            except (TypeError, IndexError):
+                # If it fails, just use the event as is
+                pos = evt
+        
+        if self.plotItem.sceneBoundingRect().contains(pos):
+            mousePoint = self.plotItem.vb.mapSceneToView(pos)
+            x, y = mousePoint.x(), mousePoint.y()
+            
+            # Update crosshair position
+            self.vLine.setPos(x)
+            self.hLine.setPos(y)
+            
+            # Update text with coordinates
+            self.label.setText(f"x: {x:.2f}, y: {y:.2f}")
+            
+            # Position the text near but not directly under the cursor
+            self.label.setPos(x, y)
 
     def get_crop_region(self):
         return self.crop_region
