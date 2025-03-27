@@ -206,7 +206,7 @@ class CorrectBaselineCommand(Command):
         
         self.app.spectrum = self.new_spectrum
         self.app.plot1.clear()
-        self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y, self.app.spectrum_pen)
+        self.app.spectrum_plot = self.app.plot1.plot(self.app.spectrum.x, self.app.spectrum.y)
         self.app.plot1.autoRange()
 
     def undo(self):

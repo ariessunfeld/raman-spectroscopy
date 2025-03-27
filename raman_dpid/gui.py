@@ -366,6 +366,11 @@ class MainApp(QMainWindow):
         self.button_baseline.clicked.connect(self.baseline_callback)
         plot1_buttons_layout.addWidget(self.button_baseline)
 
+        # LineEdit: enter value for baseline ALS
+        self.lineedit_lambda = QLineEdit(self)
+        self.lineedit_lambda.setPlaceholderText('lambda (default: 100000)')
+        plot1_buttons_layout.addWidget(self.lineedit_lambda)
+
         # Button: discretize baseline
         self.button_discretize = QPushButton('Discretize Baseline', self)
         self.button_discretize.clicked.connect(self.discretize_baseline)
@@ -598,12 +603,12 @@ class MainApp(QMainWindow):
             self.toggle_batch_processing_button.setText('Show Batch Processing Window')
 
     def select_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, 'Select Folder', '..')
+        folder = QFileDialog.getExistingDirectory(self, 'Select Folder')
         if folder:
             self.folder_path = folder
             self.folder_label.setText(folder)
             # Get the list of files in the folder
-            self.batch_files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+            self.batch_files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and (f.endswith('.txt') or f.endswith('.spc'))]
             self.current_batch_file_index = 0
             self.current_batch_step_index = 0
             if self.batch_files:
@@ -1216,7 +1221,7 @@ class MainApp(QMainWindow):
         default_name = f"{self.unknown_spectrum_path.stem}_processed.txt"
         suggested_path = self.unknown_spectrum_path.parent / default_name
         #options = QFileDialog.Option()
-        fname, _ = QFileDialog.getSaveFileName(self, "Save Spectrum", str(suggested_path), "Text Files (*.txt);;All Files (*)")
+        fname, _ = QFileDialog.getSaveFileName(self, "Save Spectrum", filter="Text Files (*.txt);;All Files (*)")
 
         if fname:  # Check if user didn't cancel the dialog
             with open(fname, 'w') as f:
@@ -1300,13 +1305,13 @@ class MainApp(QMainWindow):
             self.align_button.setText('Align X Axis')
 
     def load_database_file(self):
-        fname = QFileDialog.getOpenFileName(self, 'Open Database', '..', "Database Files (*.db);;All Files (*)")
+        fname = QFileDialog.getOpenFileName(self, 'Open Database', filter="Database Files (*.db);;All Files (*)")
         if fname[0]:
             self.database_path = Path(fname[0])
             self.database_label.setText(f"Database: {self.database_path.name}")
 
     def load_unknown_spectrum(self):
-        fname = QFileDialog.getOpenFileName(self, 'Select Raman Spectrum', '..')
+        fname = QFileDialog.getOpenFileName(self, 'Select Raman Spectrum')
         if fname[0]:
             self.unknown_spectrum_path = Path(fname[0])
             command = LoadSpectrumCommand(self, *get_xy_from_file(self.unknown_spectrum_path))
@@ -1314,7 +1319,9 @@ class MainApp(QMainWindow):
 
     def baseline_callback(self):
         if self.button_baseline.text() == "Estimate Baseline":
-            command = EstimateBaselineCommand(self, baseline_als(self.spectrum.y))
+            lam = self.lineedit_lambda.text()
+            lam = float(lam)
+            command = EstimateBaselineCommand(self, baseline_als(self.spectrum.y, lam=lam))
             self.command_history.execute(command)
         else:
             command = CorrectBaselineCommand(self)
